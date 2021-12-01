@@ -5,6 +5,8 @@
 
 # synonym file
 
+import numpy as np
+
 import nltk
 nltk.download('wordnet')
 nltk.download('stopwords')

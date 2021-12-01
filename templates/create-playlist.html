@@ -1,0 +1,198 @@
+<html>
+<head>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.0/socket.io.js"></script>
+	<link rel="preconnect" href="https://fonts.gstatic.com">
+	<link href="https://fonts.googleapis.com/css2?family=Rubik&display=swap" rel="stylesheet">
+
+<style>
+	body {
+		background-color: #191414;
+		color: #fff;
+	}
+
+	* {
+		font-family: "Rubik", "sans-serif";
+	}
+
+	div {
+		text-align: center;
+		margin-top: 50px;
+	}
+
+	h1 {
+		color: #1db954; /* #1ed760 */
+		/* color: red; */
+		font-size: 40pt;
+	}
+
+	p {
+		font-size: 24pt;
+		color: #1ed760;
+	}
+
+	#bookshelf-container {
+		width:fit-content;
+		height: fit-content;
+	}
+
+	.bookshelf {
+		/* height: 80vh; */
+		width: 38vh; /* 184px 36.28vh */
+		/* width: -moz-fit-content;
+		width: fit-content; */
+		/* width: 80vw; */
+		height: 72vh; /* 355px 70vh */
+		/* padding-top:100%; */
+		background: url('/static/images/bookshelf.png');
+		background-repeat: no-repeat;
+		/* background-size: 100% auto; */
+		background-size: cover;
+		/* background-size: contain; */
+		display: flex;
+		flex-wrap: wrap;
+		flex-direction: row;
+		/* flex-grow: 1; */
+		/* flex-basis: 20%; */
+		flex: 1 1 auto;
+		align-content: flex-start;
+		padding:2vh;
+		padding-top:2.78vh;
+		column-gap:1vh;
+		row-gap:3.2vh;
+		position: absolute;
+		bottom: 4rem;
+		/* left: 2vh; */
+		right: 4vh;
+		/* align-items: flex-start; */
+		/* justify-content: left; */
+	}
+
+	.bookshelf > img {
+		/* flex-shrink: 3; */
+		width: 11.9vh;
+		height:11.9vh;
+		/* width: 30%;
+		height:16%; */
+		/* width: 2px; */
+	}
+
+	#carousel-container {
+		position: absolute;
+		right:4vh;
+		bottom:0;
+		z-index: 1000;
+		padding:2vh;
+		width: 38vh;
+		height: 4rem;
+	}
+
+	.carousel {
+		position:absolute;
+		bottom: 0;
+		font-size: 2.5rem;
+		cursor: not-allowed;
+		z-index: 1000;
+		color: #949494;
+	}
+
+	.carousel.active {
+		color: #fff;
+		cursor: pointer;
+	}
+
+	#prev-arrow { /* &#129184; */
+		left: 2vh;
+		text-align: left;
+	}
+
+	#next-arrow { /* &#129185; */
+		/* left: 38vh; */
+		right: 2vh;
+		text-align: right;
+	}
+</style>
+</head>
+<body>
+<div>
+    <p>Creating Playlist...</p>
+</div>
+<div id="bookshelf-container">
+	<div id="bookshelf" class="bookshelf">
+</div>
+<div id="carousel-container"></div>
+</div>
+
+<script>
+	// console.log(window.location);
+
+		var socket = io.connect(null, {port: 5000, rememberTransport: false});
+	
+		let bookshelfContainer = document.getElementById('bookshelf-container');
+		let current_bookshelf_idx;
+		let bookshelf_idx = 0;
+		let bookshelf = bookshelfContainer.querySelector('.bookshelf');
+		let prev_bookshelf, next_bookshelf;
+
+		socket.on('new_album', function(data, cb) {
+			if (data.count % 16 == 0) {
+				bookshelf_idx += 1;
+				bookshelf = document.createElement('div');
+				bookshelf.classList.add('bookshelf');
+				bookshelf.style.zIndex = bookshelf_idx;
+				bookshelfContainer.appendChild(bookshelf);
+
+				if (data.count == 16) {
+					prev_bookshelf = document.createElement('div');
+					next_bookshelf = document.createElement('div');
+					prev_bookshelf.id = 'prev-arrow';
+					next_bookshelf.id = 'next-arrow';
+					prev_bookshelf.innerText = '🢦';
+					next_bookshelf.innerText = '🢧';
+					prev_bookshelf.classList.add('carousel', 'active');
+					next_bookshelf.classList.add('carousel');
+					prev_bookshelf.title = 'Click to view previous bookshelf';
+					next_bookshelf.title = 'Click to view next bookshelf';
+					let carouselContainer = document.getElementById('carousel-container');
+					carouselContainer.appendChild(prev_bookshelf);
+					carouselContainer.appendChild(next_bookshelf);
+
+					prev_bookshelf.addEventListener('click', (ev) => {
+						next_bookshelf.classList.add('active');
+						let bookshelves = document.querySelectorAll('.bookshelf');
+
+						if (current_bookshelf_idx === undefined) {
+							ev.target.classList.add('active');
+							current_bookshelf_idx = bookshelf_idx;
+							bookshelves[current_bookshelf_idx].style.display = 'none';
+							current_bookshelf_idx -= 1;
+						} else if (current_bookshelf_idx > 0) {
+							ev.target.classList.add('active');
+							bookshelves[current_bookshelf_idx].style.display = 'none';
+							current_bookshelf_idx -= 1;
+							bookshelves[current_bookshelf_idx].style.display = 'flex';
+						}
+						
+						if (current_bookshelf_idx === 0) ev.target.classList.remove('active');
+					});
+
+					next_bookshelf.addEventListener('click', (ev) => {
+						prev_bookshelf.classList.add('active');
+						let bookshelves = document.querySelectorAll('.bookshelf');
+						
+						if (current_bookshelf_idx !== undefined && current_bookshelf_idx < bookshelf_idx) {
+							ev.target.classList.add('active');
+							bookshelves[current_bookshelf_idx].style.display = 'none';
+							current_bookshelf_idx += 1;
+							bookshelves[current_bookshelf_idx].style.display = 'flex';
+							if (current_bookshelf_idx === bookshelf_idx) ev.target.classList.remove('active');
+						} else ev.target.classList.remove('active');
+					});
+				}
+			}
+			let album_img = document.createElement('img');
+			album_img.src = data.album;
+			bookshelf.appendChild(album_img);
+		});
+	</script>
+</body>
+</html>

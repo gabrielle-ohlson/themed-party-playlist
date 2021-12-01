@@ -101,6 +101,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+#environment variables
+.env
+
 # Environments
 .spotify
 spotify/
@@ -125,4 +128,7 @@ dmypy.json
 
 config.py
 
-requirements-old.txt
+ignore/
+
+.flask_session/
+.spotify_caches/
