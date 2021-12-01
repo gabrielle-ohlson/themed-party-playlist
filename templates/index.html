@@ -1,27 +1,169 @@
-<link rel="preconnect" href="https://fonts.gstatic.com">
-<link href="https://fonts.googleapis.com/css2?family=Rubik&display=swap" rel="stylesheet">
+<html>
+<head>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.0/socket.io.js"></script>
+	<link rel="preconnect" href="https://fonts.gstatic.com">
+	<link href="https://fonts.googleapis.com/css2?family=Rubik&display=swap" rel="stylesheet">
 
 <style>
-    * {
-        font-family: "Rubik", "sans-serif";
-    }
+	body {
+		background-color: #191414;
+		color: #fff;
+	}
+	
+	* {
+		font-family: "Rubik", "sans-serif";
+	}
 
-    div {
-        text-align: center;
-        margin-top: 50px;
-    }
+	div {
+		text-align: center;
+		margin-top: 50px;
+	}
 
-    h1 {
-        color: red;
-        font-size: 40pt;
-    }
+	h1 {
+		color: #1db954; /* #1ed760 */
+		/* color: red; */
+		font-size: 40pt;
+	}
 
-    p {
-        font-size: 24pt;
-    }
+	p {
+		font-size: 24pt;
+		color: #1ed760;
+	}
+
+	select {
+		max-width: 80vw;
+	}
 </style>
+</head>
 
+<body>
 <div>
-    <h1>Welcome!</h1><br>
-    <p>This site has been visited {{ count }} times.</p>
+	<h1>Welcome!</h1><br>
+	<p>Themed Party Playlist: Spotify AI</p>
 </div>
+<form action="{{ url_for('sign_in')}}" method="post">
+	<label for="theme">Party theme:</label>
+	<input type="text" id="theme" name="theme" placeholder="input theme" required/>
+	<br>
+	<label for="method">Method for finding songs:</label>
+	<select id="method" name="method">
+		<option value="top tracks"><button>top tracks</button></option>
+		<option value="saved tracks"><button>saved tracks</button></option>
+		<option value="playlist"><button>existing playlist</button></option>
+	</select>
+	<span id="playlistNameContainer" style="display: none">
+		<label id="playlistNameLabel" for="playlistName">Name of an existing playlist from your spotify account:</label>
+		<input type="text" id="playlistName" name="playlistName" placeholder="input playlist name"/> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
+		<button id="browsePlaylists">browse playlists</button>
+		<span id="browsePlaylistsContainer" style="display: none;">
+		</span>
+	</span>
+	<br>
+	<label for="stopCondition">Condition for stopping the program:</label>
+	<select id="stopCondition" name="stopCondition">
+		<option value="None"><button>none</button></option>
+		<option value="duration"><button>duration</button></option>
+		<option value="song count"><button>song count</button></option>
+	</select>
+	<span id="stopNumContainer" style="display:none">
+		<label id="stopNumLabel" for="stopNum">Number associated with your chosen condition:</label>
+		<input type="number" id="stopNum" name="stopNum" placeholder="input stop condition number"/> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
+	</span>
+	<br>
+	<label for="saveAs">Save as:</label>
+	<input type="text" id="saveAs" name="saveAs" placeholder="leave blank for default"/>
+	<br>
+	<button type="submit">Submit!</button>
+</form>
+<div id="def-container" style="display:{{ def_display }}">
+	<label for="def-form"><b>Definitions to use for {{ theme }}</b></label>
+	<form name="def-form" action="{{ url_for('sign_in')}}" method="post">
+		{% for w in words_defs: %}
+		<label for="{{ w[0] }}">Related term '{{ w[0] }}':</label>
+			<select name="{{ w[0] }}" class="0">
+			{% for val in w[1]: %}
+			<option value="{{ val[0] }}"><button>{{ val[1] }}</button></option>
+			{% endfor %}
+			</select>
+			<br>
+		{% endfor %}
+		<button type="submit">Submit!</button>
+	</form>
+</div>
+
+<script>
+	let theme_input = document.getElementById('theme');
+
+	let method_input = document.getElementById('method');
+	let playlistNameContainer = document.getElementById('playlistNameContainer');
+	let playlistName_input = document.getElementById('playlistName');
+	let playlistsContainer = document.getElementById('browsePlaylistsContainer')
+
+	let stopCondition_input = document.getElementById('stopCondition');
+	let stopNumContainer = document.getElementById('stopNumContainer');
+	let stopNum_label = document.getElementById('stopNumLabel');
+
+	let saveAs_input = document.getElementById('saveAs');
+
+	addEventListener("DOMContentLoaded", function() {
+		method_input.addEventListener('change', (ev) => {
+			if (ev.target.value === 'playlist') {
+				playlistNameContainer.style.display = 'block';
+				playlistName_input.required = true;
+
+				let playlistButton = document.getElementById('browsePlaylists');
+				playlistButton.addEventListener('click', (ev) => {
+					ev.preventDefault();
+
+					let request = new XMLHttpRequest();
+					request.onload = function() {
+						let playlists = JSON.parse(request.response);
+
+						let playlistsHTML = '<select id="playlistSelect" name="playlistSelect">';
+						// playlistsContainer.innerHTML += '<select id="playlistSelect" name="playlistSelect">';
+						for (let p of playlists['items']) {
+							playlistsHTML += `<option value="${p['name']}"><button>${p['name']}</button></option>`;
+						}
+						playlistsHTML += '</select>';
+						playlistsContainer.innerHTML = playlistsHTML;
+						playlistsContainer.style.display = 'block';
+
+						document.getElementById('playlistSelect').addEventListener('change', (ev) => {
+							playlistName_input.value = ev.target.value;
+						});
+					}
+
+					request.open('GET', '/user-playlists', true);
+					request.send();
+
+				});
+			} else {
+				playlistNameContainer.style.display = 'none';
+				playlistName_input.required = false;
+			}
+		});
+	});
+
+	theme_input.addEventListener('blur', (ev) => {
+		if (!saveAs_input.value || !saveAs_input.classList.contains('userSpecified')) saveAs_input.value = `${ev.target.value} party`;
+	});
+
+	saveAs_input.addEventListener('keydown', (ev) => {
+		ev.target.classList.add('userSpecified');
+	});
+
+	stopCondition_input.addEventListener('change', (ev) => {
+		// Number associated with your chosen condition:
+		if (ev.target.value === 'duration') {
+			stopNumContainer.style.display = 'block';
+			stopNum_label.innerText = 'Max playlist duration (in minutes):';
+		} else if (ev.target.value === 'song count') {
+			stopNumContainer.style.display = 'block';
+			stopNum_label.innerText = 'Max number of songs:';
+		} else stopNumContainer.style.display = 'none';
+	});
+
+
+</script>
+</body>
+</html>
