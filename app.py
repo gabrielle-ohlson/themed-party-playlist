@@ -1,4 +1,6 @@
 # backend for web app
+import eventlet
+eventlet.monkey_patch()
 
 from flask.wrappers import Response
 
@@ -64,7 +66,7 @@ async_mode = 'threading' #None
 
 # socketio.set('transports', ['websocket'])
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
 
 #update_bookshelf Generator Thread
 thread = Thread()
