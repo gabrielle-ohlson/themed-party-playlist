@@ -129,9 +129,14 @@
 		// var socket = io.connect(null, {transports: ['websocket']});
 
 		// var socket = io.connect();
-		console.log(document.domain + ':' + location.port);
-		console.log(location.href)
-		var socket = io.connect('http://' + document.domain + ':' + location.port);
+		console.log(location.host);
+		console.log(location.href, location.host, location.hostname);
+		let connect_url = 'http://' + document.domain;
+		if (location.port) connect_url += `:${location.port}`;
+		console.log(connect_url);
+		var socket = io.connect(location.host);
+		// var socket = io.connect(connect_url);
+		// var socket = io.connect('http://' + document.domain + ':' + location.port);
 		//debug
 		console.log('check 1', socket.connected);
 		socket.on('connect', function() {
