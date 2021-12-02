@@ -51,7 +51,15 @@ app.config['SPOTIPY_REDIRECT_URI']= 'http://127.0.0.1:5000/'
 genius_token = os.getenv('GENIUS_TOKEN')
 genius = lyricsgenius.Genius(genius_token)  # access token
 
-socketio = SocketIO(app, async_mode='threading')
+
+async_mode = 'threading' #None
+# socketio = SocketIO(app, async_mode='threading')
+# socketio = SocketIO(app, async_mode=async_mode)
+# socketio.init_app(app, cors_allowed_origins="*")
+
+# socketio.set('transports', ['websocket'])
+
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 #update_bookshelf Generator Thread
 thread = Thread()

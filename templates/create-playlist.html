@@ -125,7 +125,9 @@
 <script>
 	// console.log(window.location);
 
-		var socket = io.connect(null, {port: 5000, rememberTransport: false});
+		// var socket = io.connect(null,  {rememberTransport: false, transports: ['websocket']});
+		var socket = io.connect(null,  {transports: ['websocket']});
+		// var socket = io.connect(null, {port: 5000, rememberTransport: false});
 	
 		let bookshelfContainer = document.getElementById('bookshelf-container');
 		let current_bookshelf_idx;
