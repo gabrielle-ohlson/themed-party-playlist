@@ -48,6 +48,11 @@ app.config['SPOTIPY_CLIENT_SECRET']=environ.get('SPOTIPY_CLIENT_SECRET')
 
 app.config['SPOTIPY_REDIRECT_URI']= 'http://127.0.0.1:5000/'
 
+if (os.environ.get('PORT')):
+	port = os.environ.get('PORT')
+else:
+	port = 5000
+
 genius_token = os.getenv('GENIUS_TOKEN')
 genius = lyricsgenius.Genius(genius_token)  # access token
 
@@ -201,4 +206,4 @@ def sign_in():
 
 # Run application
 if __name__ == "__main__":
-	socketio.run(app)
+	socketio.run(app, port=port)
