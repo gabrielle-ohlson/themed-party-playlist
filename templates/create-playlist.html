@@ -128,7 +128,10 @@
 		// var socket = io.connect(null,  {rememberTransport: false, transports: ['websocket']});
 		// var socket = io.connect(null, {transports: ['websocket']});
 
-		var socket = io.connect();
+		// var socket = io.connect();
+		console.log(document.domain + ':' + location.port);
+		console.log(location.href)
+		var socket = io.connect('http://' + document.domain + ':' + location.port);
 		//debug
 		console.log('check 1', socket.connected);
 		socket.on('connect', function() {
