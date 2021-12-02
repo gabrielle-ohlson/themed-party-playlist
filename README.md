@@ -29,4 +29,5 @@ torch==1.10.0+cpu
 ## TODO:
 - [ ] make sign in page look nice
 - [x] add customization options if certain form elements are chosen
+- [ ] add spinning record player
 - [ ] test out NLTK vs torchtext
