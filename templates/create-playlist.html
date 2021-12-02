@@ -110,12 +110,22 @@
 		right: 2vh;
 		text-align: right;
 	}
+
+	.rotating {
+		animation: rotate 1s infinite;
+	}
+
+	@keyframes rotate {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
 </style>
 </head>
 <body>
 <div>
     <p>Creating Playlist...</p>
 </div>
+
 <div id="bookshelf-container">
 	<div id="bookshelf" class="bookshelf">
 </div>
@@ -152,7 +162,12 @@
 		let bookshelf = bookshelfContainer.querySelector('.bookshelf');
 		let prev_bookshelf, next_bookshelf;
 
+		let record = document.getElementById('record');
+		
+
+
 		socket.on('new_album', function(data, cb) {
+			console.log('new album!', data.album); //remove //debug
 			if (data.count % 16 == 0) {
 				bookshelf_idx += 1;
 				bookshelf = document.createElement('div');
