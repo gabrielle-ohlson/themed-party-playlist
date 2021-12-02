@@ -55,7 +55,7 @@ else:
 
 genius_token = os.getenv('GENIUS_TOKEN')
 genius = lyricsgenius.Genius(genius_token)  # access token
-
+# genius = lyricsgenius.Genius(genius_token, timeout=15, sleep_time=40)  # access token
 
 async_mode = 'threading' #None
 # socketio = SocketIO(app, async_mode='threading')
