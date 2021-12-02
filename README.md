@@ -30,4 +30,5 @@ torch==1.10.0+cpu
 - [ ] make sign in page look nice
 - [x] add customization options if certain form elements are chosen
 - [ ] add spinning record player
+- [ ] js: get name of songs + lyrics kw matches for theme + display in html
 - [ ] test out NLTK vs torchtext
