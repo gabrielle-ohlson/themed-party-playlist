@@ -18,3 +18,5 @@ config.py
 # Debug/backup files
 ignore/
 * copy*
+
+passwords.txt
