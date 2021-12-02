@@ -23,8 +23,13 @@ args = parser.parse_args()
 
 print("\n(if nothing pops up, you're a repeat user and good to go)\nFIRST TIME USERS: authorize this program to access your spotify account in the browser window that pops up by clicking 'AGREE', and then, once redirected to edgygrandma.com...")
 
+<<<<<<< HEAD
 os.environ['SPOTIPY_CLIENT_ID'] = os.getenv('SPOTIPY_CLIENT_ID')
 os.environ['SPOTIPY_CLIENT_SECRET'] = os.getenv('SPOTIPY_CLIENT_SECRET')
+=======
+os.environ['SPOTIPY_CLIENT_ID'] = os.getenv('SPOTIPY_CLIENT_ID')
+os.environ['SPOTIPY_CLIENT_SECRET'] = os.getenv('SPOTIPY_CLIENT_SECRET')
+>>>>>>> e5a40e0de6eeec7a7ae72a8827bbde8319080ffb
 os.environ['SPOTIPY_REDIRECT_URI'] = 'https://www.edgygrandma.com/'
 
 scope = 'user-library-read playlist-read-private user-top-read playlist-modify-private playlist-modify-public'
