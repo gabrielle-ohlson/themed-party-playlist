@@ -66,7 +66,9 @@ async_mode = 'threading' #None
 
 # socketio.set('transports', ['websocket'])
 
-socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
+# socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode=None, cors_allowed_origins=['http://localhost:5000', 'https://localhost:5000', 'https://themed-party-playlist.herokuapp.com', 'https://themed-party-playlist.herokuapp.com/create-playlist', 'http://127.0.0.1:5000', 'https://127.0.0.1:5000'])
+# socketio = SocketIO(app, cors_allowed_origins=['http://localhost:5000', 'https://localhost:5000', 'https://themed-party-playlist.herokuapp.com'])
 
 #update_bookshelf Generator Thread
 thread = Thread()
