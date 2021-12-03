@@ -199,7 +199,7 @@ def analyze(sp, input_info):
 	
 
 #--- MAIN FUNCTION ---
-def parseLyrics(genius, input_info, topic_dictionary, songs):
+def parseLyrics(genius, topic_dictionary, song):
 	'''
 	Retreives lyrics from genius & goes through them to see if they match the provided theme
 
@@ -208,21 +208,25 @@ def parseLyrics(genius, input_info, topic_dictionary, songs):
 		* songs (list): contains dicts with song info (returned from `getSongs` func)
 	'''
 	# info = { 'duration': 0, 'song count': 0 }
-	playlistSongs = []
+	# playlistSongs = []
 	# subSongs = []
-	description = []
-	albumArt = []
-	
-	stopCondition, stopNum, info = input_info['stopCondition'], input_info['stopNum'], input_info['info']
+	# description = []
+	# albumArt = []
 
-	def reachedLimit():
-		'''
-		function to check whether the playlist is at the max length (aka met stop condition)
-		'''
-		if stopNum is None or abs(stopNum-info[stopCondition]) >= 60000 or info[stopCondition] <= stopNum: return False
-		else: return True #break if within 1 minute of stopNum or exceeded stopNum
-		# if abs(stopNum-info[stopCondition]) < 60000 or info[stopCondition] > stopNum: return False #break if within 1 minute of stopNum or exceeded stopNum
-		# else: return True
+	songMatch = None
+	description = None
+	albumArt = None
+	
+	# stopCondition, stopNum, info = input_info['stopCondition'], input_info['stopNum'], input_info['info']
+
+	# def reachedLimit():
+	# 	'''
+	# 	function to check whether the playlist is at the max length (aka met stop condition)
+	# 	'''
+	# 	if stopNum is None or abs(stopNum-info[stopCondition]) >= 60000 or info[stopCondition] <= stopNum: return False
+	# 	else: return True #break if within 1 minute of stopNum or exceeded stopNum
+	# 	# if abs(stopNum-info[stopCondition]) < 60000 or info[stopCondition] > stopNum: return False #break if within 1 minute of stopNum or exceeded stopNum
+	# 	# else: return True
 
 
 	def getSongLyrics(title, artist):
@@ -247,56 +251,59 @@ def parseLyrics(genius, input_info, topic_dictionary, songs):
 		if song is not None: return f'{title}\n' + song.lyrics
 		else: return None
 
-	subSongs = []
+	# subSongs = []
 
-	for song in songs:
-		songName = song['name']
-		primaryArtist = song['artists'][0]
-		songLyrics = getSongLyrics(title=songName, artist=primaryArtist)
+	# for song in songs:
+	songName = song['name']
+	primaryArtist = song['artists'][0]
+	songLyrics = getSongLyrics(title=songName, artist=primaryArtist)
 
-		print('song:', songName)
+	if songLyrics is not None:
+		lyricMatches = syn.multi_topic_scorer(songLyrics, topic_dictionary, sim_thresh=0.8, return_hits=True) #TODO: find good sim_thresh
+		# lyricMatches = syn.multi_topic_scorer(songLyrics, topic_dictionary, sim_thresh=0.75, return_hits=True) #TODO: find good sim_thresh
+		# keywords = lyricMatches[theme][1]
+		
+		matches_theme = False
 
-		if songLyrics is not None:
-			lyricMatches = syn.multi_topic_scorer(songLyrics, topic_dictionary, sim_thresh=0.8, return_hits=True) #TODO: find good sim_thresh
-			# lyricMatches = syn.multi_topic_scorer(songLyrics, topic_dictionary, sim_thresh=0.75, return_hits=True) #TODO: find good sim_thresh
-			# keywords = lyricMatches[theme][1]
-			
-			matches_theme = False
+		top_sim = 0
 
-			top_sim = 0
+		# print('lyricMatches:', lyricMatches) #remove #debug
+		for match in lyricMatches.values():
+			if match[0] > 0:
+				keywords = match[1]
+				print(f"Adding {songName} by {primaryArtist} to playlist because it passes the similarity threshold with a score of {match[0]} and contains the keywords: {keywords}\n")
+				matches_theme = True
+				break
 
-			# print('lyricMatches:', lyricMatches) #remove #debug
-			for match in lyricMatches.values():
-				if match[0] > 0:
-					keywords = match[1]
-					print(f"Adding {songName} by {primaryArtist} to playlist because it passes the similarity threshold with a score of {match[0]} and contains the keywords: {keywords}\n")
-					matches_theme = True
-					break
+		# if lyricMatches[theme][0] > 0:
+		if matches_theme:
+			songMatch = song
+			description = f"{songName}: {keywords}"
+			# albumArt = song['album_art']
+			# print(f"Adding {songName} by {primaryArtist} to playlist because it contains the keywords: {keywords}\n")
 
-			# if lyricMatches[theme][0] > 0:
-			if matches_theme:
-				# print(f"Adding {songName} by {primaryArtist} to playlist because it contains the keywords: {keywords}\n")
+			# if (len(subSongs) == 100):
+			# 	playlistSongs.append(subSongs)
+			# 	subSongs = []
 
-				if (len(subSongs) == 100):
-					playlistSongs.append(subSongs)
-					subSongs = []
+			# subSongs.append(song['id'])
 
-				subSongs.append(song['id'])
+			# albumArt.append(song['album_art'])
+			# # playlistSongs.append(song['id'])
+			# description.append(f"{songName}: {keywords}")
 
-				albumArt.append(song['album_art'])
-				# playlistSongs.append(song['id'])
-				description.append(f"{songName}: {keywords}")
+			# info['song count'] += 1
+			# info['duration'] += song['duration']
+		else: print(f"SKIPPING: {songName} by {primaryArtist} does not match.")
 
-				info['song count'] += 1
-				info['duration'] += song['duration']
-			else: print(f"SKIPPING: {songName} by {primaryArtist} does not match.")
-
-			if reachedLimit(): break
+		# if reachedLimit(): break
 
 
-	if len(subSongs) and (not len(playlistSongs) or playlistSongs[-1] != subSongs): playlistSongs.append(subSongs)
+	# if len(subSongs) and (not len(playlistSongs) or playlistSongs[-1] != subSongs): playlistSongs.append(subSongs)
 
-	return playlistSongs, albumArt, description
+	return songMatch, description
+	# return playlistSongs, albumArt, description
+	# return playlistSongs, albumArt, description
 
 
 # parseLyrics(sampleTracks)

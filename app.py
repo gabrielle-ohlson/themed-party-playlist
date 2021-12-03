@@ -139,8 +139,7 @@ input_info = {
 	'stopCondition': None,
 	'stopNum': None,
 	'playlistName': None,
-	'saveAs': None,
-	'info': { 'duration': 0, 'song count': 0 }
+	'saveAs': None
 }
 
 userPlaylists = None
@@ -150,6 +149,17 @@ topic_dictionary = {}
 albums = []
 songs = []
 
+info = { 'duration': 0, 'song count': 0 }
+
+def reachedLimit():
+	print(input_info['stopNum'], info[input_info['stopCondition']], input_info['stopCondition'], input_info['stopNum'] is None or abs(input_info['stopNum']-info[input_info['stopCondition']]) >= 60000 or info[input_info['stopCondition']] < input_info['stopNum'])
+	'''
+	function to check whether the playlist is at the max length (aka met stop condition)
+	'''
+	if input_info['stopNum'] is None or abs(input_info['stopNum']-info[input_info['stopCondition']]) >= 60000 or info[input_info['stopCondition']] < input_info['stopNum']: return False
+	else: return True #break if within 1 minute of stopNum or exceeded stopNum
+	# if abs(stopNum-info[stopCondition]) < 60000 or info[stopCondition] > stopNum: return False #break if within 1 minute of stopNum or exceeded stopNum
+	# else: return True
 
 class BookshelfThread(Thread):
 	def __init__(self):
@@ -157,26 +167,57 @@ class BookshelfThread(Thread):
 		super(BookshelfThread, self).__init__()
 	def update_bookshelf(self):
 		theme_songs = []
+		subSongs = []
 		description = []
 
 		while not thread_stop_event.is_set():
 			for song in songs: # 1 at a time
-				songs_sample = [song]
+				if reachedLimit():
+					socketio.emit('done', broadcast=True)
+					break
+				# songs_sample = [song]
 
-				matches, albumArt, desc = themes.parseLyrics(genius, input_info, topic_dictionary, songs_sample)
-				theme_songs.extend(matches)
-				description.extend(desc)
+				match, desc = themes.parseLyrics(genius, topic_dictionary, song)
 
-				if len(albumArt):
-					album = albumArt[0]
+				if match is not None:
+					subSongs.append(match['id'])
+
+					if len(subSongs) == 100:
+						theme_songs.append(subSongs)
+						subSongs = []
+					# theme_songs.append(match['id'])
+					description.append(desc)
+
+					album = match['album_art']
+
 					albums.append(album)
 
-					socketio.emit('new_album', {'album': album, 'count': len(albums)}, broadcast=True)
+					info['song count'] += 1
+					info['duration'] += match['duration']
+
+					socketio.emit('new_album', {'album': album, 'count': len(albums), 'description': desc}, broadcast=True)
 					# socketio.emit('new_album', {'album': album, 'count': len(albums)}, namespace='/create-playlist')
 					socketio.sleep(self.delay)
 
+			if len(subSongs): theme_songs.append(subSongs)
+				# # matches, albumArt, desc = themes.parseLyrics(genius, input_info, topic_dictionary, songs_sample)
+				# theme_songs.extend(matches)
+				# description.extend(desc)
+
+				# if len(albumArt):
+				# 	album = albumArt[0]
+				# 	albums.append(album)
+
+				# 	socketio.emit('new_album', {'album': album, 'count': len(albums), 'description': desc}, broadcast=True)
+				# 	# socketio.emit('new_album', {'album': album, 'count': len(albums)}, namespace='/create-playlist')
+				# 	socketio.sleep(self.delay)
+
+			# socketio.emit('done', broadcast=True)
 			# if len(songs): themes.generatePlaylist(spotify, theme_songs, input_info['saveAs'], description)
+			print('theme_songs:', theme_songs)
 			themes.generatePlaylist(spotify, theme_songs, input_info['saveAs'], description)
+
+			thread_stop_event.set()
 	def run(self):
 		self.update_bookshelf()
 
@@ -184,12 +225,7 @@ class BookshelfThread(Thread):
 # @socketio.on('connect', namespace='/create-playlist')
 @socketio.on('connect')
 def connect():
-	socketio.emit('test', {'test': 'test1'}, broadcast=True)
-	# socketio.emit('test', {'test': 'test2'}, broadcast=True)
-
 	global thread
-
-	socketio.emit('test', {'test': f'{thread}'}, broadcast=True)
 
 	# if not thread.isAlive():
 	# if not thread.is_alive():
@@ -200,9 +236,10 @@ def connect():
 
 @app.route('/create-playlist')
 def create_playlist():
-	if spotify:
-		socketio.emit('test2', {'test2': 'hi!'}, namespace='create-playlist', broadcast=True)
-		return render_template('create-playlist.html', async_mode=socketio.async_mode)
+	global thread
+	thread = None #reset
+
+	if spotify: return render_template('create-playlist.html', async_mode=socketio.async_mode)
 	else: return redirect('/')
 
 
@@ -242,24 +279,29 @@ def sign_in():
 			input_info['saveAs'] = request.form.get('saveAs')
 
 			if input_info['stopCondition'] == 'None': input_info['stopCondition'] = None
-			else: input_info['stopNum'] = int(request.form.get('stopNum'))*60000 #convert to ms (minutes is just easier for user)
+			elif input_info['stopCondition'] == 'duration': input_info['stopNum'] = int(request.form.get('stopNum'))*60000 #convert to ms (minutes is just easier for user)
+			else: input_info['stopNum'] = int(request.form.get('stopNum'))
 
 			if input_info['method'] == 'playlist': input_info['playlistName'] = request.form.get('playlistName')
 
 			useableWords = getUseableWords(input_info['theme'])
 			
 			for w in useableWords:
-				definitions = syn.word_scorer(w)
-				if len(definitions) > 1: words_defs.append([w, syn.word_scorer(w)])
-				else:
-					definition = definitions[0][0]
-					topic_dictionary[w] = definition
+				print(w)
+				words_defs.append([w, syn.word_scorer(w)])
+				# definitions = syn.word_scorer(w)
+				# if len(definitions) > 1: words_defs.append([w, syn.word_scorer(w)])
+				# else:
+				# 	definition = definitions[0][0]
+				# 	topic_dictionary[w] = definition
 			
 			def_display = 'block'
 		else:
 			for w in request.form.keys():
-				topic_dictionary[w] = request.form[w]
+				print(request.form[w], request.form.keys())
+				if request.form[w] != 'None': topic_dictionary[w] = request.form[w]
 
+			print(topic_dictionary) #remove
 			global songs
 			songs = themes.analyze(spotify, input_info)
 			return redirect(url_for('create_playlist'))

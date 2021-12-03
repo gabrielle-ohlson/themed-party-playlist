@@ -81,6 +81,7 @@
 		{% for w in words_defs: %}
 		<label for="{{ w[0] }}">Related term '{{ w[0] }}':</label>
 			<select name="{{ w[0] }}" class="0">
+			<option value="None"><button>Exclude term</button></option>
 			{% for val in w[1]: %}
 			<option value="{{ val[0] }}"><button>{{ val[1] }}</button></option>
 			{% endfor %}

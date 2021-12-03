@@ -131,6 +131,14 @@
 		z-index:1;
 	}
 
+	#song-description {
+		position: relative;
+		/* left: 4vh;
+		bottom: 4rem; */
+		z-index: 3;
+		color: #1ed760;
+	}
+
 	.rotating {
 		animation: rotate 1s infinite linear;
 	}
@@ -146,6 +154,7 @@
     <p>Creating Playlist...</p>
 </div>
 <div id="record-container">
+	<div id="song-description"></div>
 	<img id="record-shine" src="/static/images/record-shine.png"/>
 	<img id="record" class="rotating" src="/static/images/record-with-lines.png"/>
 </div>
@@ -187,13 +196,12 @@
 		let prev_bookshelf, next_bookshelf;
 
 		let record = document.getElementById('record');
-
-		socket.on('test', function(data, cb) {
-			console.log(data.test);
-		});	
+		let songDesc = document.getElementById('song-description');
 
 		socket.on('new_album', function(data, cb) {
 			console.log('new album!', data.album); //remove //debug
+			songDesc.innerText = 'Adding song:\n' + data.description;
+
 			if (data.count % 16 == 0) {
 				bookshelf_idx += 1;
 				bookshelf = document.createElement('div');
@@ -253,6 +261,12 @@
 			album_img.src = data.album;
 			bookshelf.appendChild(album_img);
 		});
+
+		socket.on('done', function(data, cb) {
+			songDesc.innerText = 'Done. Playlist created.';
+			record.classList.remove('rotating');
+		});
+
 	</script>
 </body>
 </html>
