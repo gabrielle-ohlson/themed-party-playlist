@@ -106,7 +106,13 @@ genius = lyricsgenius.Genius(genius_token)  # access token
 
 # async_mode = 'threading'
 # socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
-socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=['http://localhost:5000', 'https://localhost:5000', 'https://themed-party-playlist.herokuapp.com', 'https://themed-party-playlist.herokuapp.com/create-playlist', 'http://127.0.0.1:5000', 'http://127.0.0.1:5000/create-playlist', 'https://127.0.0.1:5000', 'https://127.0.0.1:5000/create-playlist', 'http://0.0.0.0:5000', 'http://0.0.0.0:5000/create-playlist'])
+socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=[
+	'http://localhost:5000', 'https://localhost:5000',
+	'https://themed-party-playlist.herokuapp.com', 'https://themed-party-playlist.herokuapp.com/create-playlist',
+	'http://themed-party-playlist.herokuapp.com', 'http://themed-party-playlist.herokuapp.com/create-playlist',
+	'http://127.0.0.1:5000', 'http://127.0.0.1:5000/create-playlist', 
+	'https://127.0.0.1:5000', 'https://127.0.0.1:5000/create-playlist',
+	'http://0.0.0.0:5000', 'http://0.0.0.0:5000/create-playlist'])
 
 # socketio = SocketIO(app, cors_allowed_origins=['http://localhost:5000', 'https://localhost:5000', 'https://themed-party-playlist.herokuapp.com'])
 
