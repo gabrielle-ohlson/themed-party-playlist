@@ -8,6 +8,7 @@
 	body {
 		background-color: #191414;
 		color: #fff;
+		overflow: hidden;
 	}
 
 	* {
@@ -111,8 +112,27 @@
 		text-align: right;
 	}
 
+	#record-shine {
+		position: absolute;
+		left: 4vh;
+		bottom: 4rem;
+		width: calc(96vw - 50vh);
+		max-width: 500px;
+		z-index: 2;
+	}
+
+	#record {
+		position: absolute;
+		left: 4vh;
+		bottom: 4rem;
+		width: calc(96vw - 50vh);
+		max-width: 500px;
+		/* width: 50vw; */
+		z-index:1;
+	}
+
 	.rotating {
-		animation: rotate 1s infinite;
+		animation: rotate 1s infinite linear;
 	}
 
 	@keyframes rotate {
@@ -125,7 +145,10 @@
 <div>
     <p>Creating Playlist...</p>
 </div>
-
+<div id="record-container">
+	<img id="record-shine" src="/static/images/record-shine.png"/>
+	<img id="record" class="rotating" src="/static/images/record-with-lines.png"/>
+</div>
 <div id="bookshelf-container">
 	<div id="bookshelf" class="bookshelf">
 </div>
@@ -146,7 +169,9 @@
 		console.log(connect_url); */
 		console.log(location.href);
 		// var socket = io.connect(location.protocol + '//' + location.host);
-		var socket = io.connect(location.href);
+		// var socket = io.connect(location.href);
+		var socket = io.connect();
+		// var socket = io.connect();
 		// var socket = io.connect(connect_url);
 		// var socket = io.connect('http://' + document.domain + ':' + location.port);
 		//debug

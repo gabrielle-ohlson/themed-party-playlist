@@ -226,11 +226,12 @@ def parseLyrics(genius, input_info, topic_dictionary, songs):
 
 
 	def getSongLyrics(title, artist):
-		while True:
-			try:
-				song = genius.search_song(title, artist)
-				break
-			except: pass
+		song = genius.search_song(title, artist)
+		# while True:
+		# 	try:
+		# 		song = genius.search_song(title, artist)
+		# 		break
+		# 	except: pass
 		
 		# from requests.exceptions import Timeout
 		# retries = 0

@@ -12,6 +12,8 @@ eventlet==0.30.2
 Flask==2.0.2
 Flask-Session==0.4.0
 Flask-SocketIO==5.1.1
+gevent==21.8.0
+gevent-websocket==0.10.1
 greenlet==1.1.2
 gunicorn==20.1.0
 h11==0.12.0
@@ -44,3 +46,5 @@ typing-extensions==4.0.0
 urllib3==1.26.7
 Werkzeug==2.0.2
 wsproto==1.0.0
+zope.event==4.5.0
+zope.interface==5.4.0

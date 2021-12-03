@@ -1,6 +1,38 @@
 # backend for web app
-import eventlet
-eventlet.monkey_patch()
+# import eventlet
+# eventlet.monkey_patch()
+async_mode = None
+
+if async_mode is None:
+	# if async_mode is None:
+	try:
+		from gevent import monkey
+		# async_mode = 'gevent'
+		async_mode = 'gevent'
+	except ImportError:
+		pass
+	
+	if async_mode is None:
+		try:
+			import eventlet
+			async_mode = 'eventlet'
+		except ImportError:
+			pass
+
+	if async_mode is None:
+		async_mode = 'threading'
+
+	print('async_mode is ' + async_mode)
+
+
+# monkey patching is necessary because this application uses a background
+# thread
+if async_mode == 'eventlet':
+	import eventlet
+	eventlet.monkey_patch()
+elif async_mode == 'gevent':
+	from gevent import monkey
+	monkey.patch_all()
 
 from flask.wrappers import Response
 
@@ -13,6 +45,7 @@ from flask_socketio import SocketIO, emit
 from threading import Thread, Event
 
 import lyricsgenius
+from numpy import broadcast
 
 import spotipy
 import uuid
@@ -59,19 +92,27 @@ genius_token = os.getenv('GENIUS_TOKEN')
 genius = lyricsgenius.Genius(genius_token)  # access token
 # genius = lyricsgenius.Genius(genius_token, timeout=15, sleep_time=40)  # access token
 
-async_mode = 'threading' #None
+# async_mode = 'threading' #None
 # socketio = SocketIO(app, async_mode='threading')
 # socketio = SocketIO(app, async_mode=async_mode)
 # socketio.init_app(app, cors_allowed_origins="*")
 
 # socketio.set('transports', ['websocket'])
 
+# Set this variable to "threading", "eventlet" or "gevent" to test the
+# different async modes, or leave it set to None for the application to choose
+# the best option based on available packages.
+
+
+# async_mode = 'threading'
 # socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
-socketio = SocketIO(app, async_mode=None, cors_allowed_origins=['http://localhost:5000', 'https://localhost:5000', 'https://themed-party-playlist.herokuapp.com', 'https://themed-party-playlist.herokuapp.com/create-playlist', 'http://127.0.0.1:5000', 'https://127.0.0.1:5000', 'https://127.0.0.1:5000/create-playlist'])
+socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=['http://localhost:5000', 'https://localhost:5000', 'https://themed-party-playlist.herokuapp.com', 'https://themed-party-playlist.herokuapp.com/create-playlist', 'http://127.0.0.1:5000', 'http://127.0.0.1:5000/create-playlist', 'https://127.0.0.1:5000', 'https://127.0.0.1:5000/create-playlist', 'http://0.0.0.0:5000', 'http://0.0.0.0:5000/create-playlist'])
+
 # socketio = SocketIO(app, cors_allowed_origins=['http://localhost:5000', 'https://localhost:5000', 'https://themed-party-playlist.herokuapp.com'])
 
 #update_bookshelf Generator Thread
-thread = Thread()
+thread = None
+# thread = Thread()
 thread_stop_event = Event()
 
 Session(app)
@@ -112,7 +153,10 @@ class BookshelfThread(Thread):
 		theme_songs = []
 		description = []
 
+		print('!')
+
 		while not thread_stop_event.is_set():
+			print('!')
 			for song in songs: # 1 at a time
 				songs_sample = [song]
 
@@ -124,25 +168,40 @@ class BookshelfThread(Thread):
 					album = albumArt[0]
 					albums.append(album)
 
-					socketio.emit('new_album', {'album': album, 'count': len(albums)})
+					socketio.emit('new_album', {'album': album, 'count': len(albums)}, broadcast=True)
+					# socketio.emit('new_album', {'album': album, 'count': len(albums)}, namespace='/create-playlist')
 					socketio.sleep(self.delay)
 
+			# if len(songs): themes.generatePlaylist(spotify, theme_songs, input_info['saveAs'], description)
 			themes.generatePlaylist(spotify, theme_songs, input_info['saveAs'], description)
 	def run(self):
 		self.update_bookshelf()
 
 
+# @socketio.on('connect', namespace='/create-playlist')
 @socketio.on('connect')
 def connect():
 	global thread
-	if not thread.isAlive():
+
+	print('!!!', thread)
+	# if not thread.isAlive():
+	# if not thread.is_alive():
+	if thread is None:
 		thread = BookshelfThread()
 		thread.start()
 
 
 @app.route('/create-playlist')
 def create_playlist():
-	if spotify: return render_template('create-playlist.html', async_mode=socketio.async_mode)
+	if spotify:
+		global thread
+		print('!%#$34yw')
+	# if not thread.isAlive():
+	# if not thread.is_alive():
+		if thread is None:
+			thread = BookshelfThread()
+			thread.start()
+		return render_template('create-playlist.html', async_mode=socketio.async_mode)
 	else: return redirect('/')
 
 
@@ -210,4 +269,5 @@ def sign_in():
 
 # Run application
 if __name__ == "__main__":
-	socketio.run(app, port=port)
+	# socketio.run(app)
+	socketio.run(app, port=port, debug=True)
