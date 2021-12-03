@@ -187,6 +187,7 @@ class BookshelfThread(Thread):
 # @socketio.on('connect', namespace='/create-playlist')
 @socketio.on('connect')
 def connect():
+	socketio.emit('test', {'test': 'hi'}, broadcast=True)
 	global thread
 
 	print('!!!', thread)
@@ -200,13 +201,7 @@ def connect():
 @app.route('/create-playlist')
 def create_playlist():
 	if spotify:
-		global thread
-		print('!%#$34yw')
-	# if not thread.isAlive():
-	# if not thread.is_alive():
-		if thread is None:
-			thread = BookshelfThread()
-			thread.start()
+		socketio.emit('test2', {'test2': 'hi!'}, namespace='create-playlist', broadcast=True)
 		return render_template('create-playlist.html', async_mode=socketio.async_mode)
 	else: return redirect('/')
 

@@ -188,6 +188,14 @@
 		let prev_bookshelf, next_bookshelf;
 
 		let record = document.getElementById('record');
+
+		socket.on('test', function(data, cb) {
+			console.log(data.test);
+		});
+
+		socket.on('test2', function(data, cb) {
+			console.log(data.test2);
+		});
 		
 
 
