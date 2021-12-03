@@ -187,8 +187,10 @@ class BookshelfThread(Thread):
 # @socketio.on('connect', namespace='/create-playlist')
 @socketio.on('connect')
 def connect():
-	socketio.emit('test', {'test': 'hi'}, broadcast=True)
 	global thread
+
+	socketio.emit('test', {'test': thread}, broadcast=True)
+
 
 	print('!!!', thread)
 	# if not thread.isAlive():
@@ -271,4 +273,4 @@ def sign_in():
 # Run application
 if __name__ == "__main__":
 	# socketio.run(app)
-	socketio.run(app, port=port, debug=True)
+	socketio.run(app,  port=int(os.environ.get('PORT', 5000)), debug=True)
