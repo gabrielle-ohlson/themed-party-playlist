@@ -191,13 +191,7 @@
 
 		socket.on('test', function(data, cb) {
 			console.log(data.test);
-		});
-
-		socket.on('test2', function(data, cb) {
-			console.log(data.test2);
-		});
-		
-
+		});	
 
 		socket.on('new_album', function(data, cb) {
 			console.log('new album!', data.album); //remove //debug

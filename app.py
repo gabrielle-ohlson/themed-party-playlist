@@ -273,4 +273,6 @@ def sign_in():
 # Run application
 if __name__ == "__main__":
 	# socketio.run(app)
-	socketio.run(app,  port=int(os.environ.get('PORT', 5000)), debug=True)
+		socketio.run(app, port=port, debug=True)
+
+	# socketio.run(app,  port=int(os.environ.get('PORT', 5000)), debug=True)
