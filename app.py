@@ -159,10 +159,7 @@ class BookshelfThread(Thread):
 		theme_songs = []
 		description = []
 
-		print('!')
-
 		while not thread_stop_event.is_set():
-			print('!')
 			for song in songs: # 1 at a time
 				songs_sample = [song]
 
@@ -187,12 +184,13 @@ class BookshelfThread(Thread):
 # @socketio.on('connect', namespace='/create-playlist')
 @socketio.on('connect')
 def connect():
+	socketio.emit('test', {'test': 'test1'}, broadcast=True)
+	# socketio.emit('test', {'test': 'test2'}, broadcast=True)
+
 	global thread
 
-	socketio.emit('test', {'test': thread}, broadcast=True)
+	socketio.emit('test', {'test': f'{thread}'}, broadcast=True)
 
-
-	print('!!!', thread)
 	# if not thread.isAlive():
 	# if not thread.is_alive():
 	if thread is None:
