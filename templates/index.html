@@ -101,20 +101,23 @@
 	</select>
 	<span id="stopNumContainer" style="display:none">
 		<label id="stopNumLabel" for="stopNum">Number associated with your chosen condition:</label>
-		<input type="number" min="0" oninput="validity.valid||(value='');" id="stopNum" name="stopNum" placeholder="input stop condition number"/> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
+		<input type="number" min="0" oninput="validity.valid||(value='');" id="stopNum" name="stopNum" placeholder="input stop condition number" size=6/> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
 	</span>
 	<br>
 	<label for="saveAs">Save as:</label>
 	<input type="text" id="saveAs" name="saveAs" placeholder="leave blank for default"/>
 	<br>
 	<label for="trainTime">How much time do you have to train the model?</label>
-	<input type="number" min="0" oninput="validity.valid||(value='');" id="trainTime" name="trainTime" value=15 size=5/><span>minutes</span> <!-- TODO: have this appear in the other form below if no csv file for theme -->
+	<!-- <label for="trainTime">Until what time are you around to train the model?</label> -->
+	 <input type="number" min="0" oninput="validity.valid||(value='');" id="trainTime" name="trainTime" value=15 size=5/><span>minutes</span>
+	<!-- TODO: have this appear in the other form below if no csv file for theme -->
+	<!-- <input type="time" min="{{current_time}}" id="trainTime" name="trainTime" value="{{current_time}}" size=5/> -->
 	<br>
 	<button type="submit">Submit!</button>
 </form>
 <div id="def-container" style="display:{{ def_display }}">
 	<label for="def-form"><b>Related terms to use for '{{ theme }}':</b></label>
-	<form name="def-form" action="{{ url_for('sign_in')}}" method="post">
+	<form name="def-form" action="{{url_for('sign_in')}}" method="post">
 		{% for w in sim_words: %}
 		<input type="checkbox" id="{{ w }}" name="{{ w }}" />
 		<label for="{{ w }}">Include '{{ w }}'</label>
@@ -127,18 +130,19 @@
 <script>
 	var socket = io.connect();
 
-	// socket.on('connect', function() {
-	// 	socket.emit('bookshelf');
-	// 	console.log('check 2', socket.connected);
-	// });
+	console.log(socket.connected);
 
-	function get_lyrics() {
-		socket.emit('get_lyrics');
-	}
-
-	socket.on('lyrics', function() {
-
+	socket.on('connect', function() {
+		socket.emit('request_nlp');
+		console.log('check 2', socket.connected);
 	});
+
+	let status = document.getElementById('status');
+
+	socket.on('new_status', function(data, cb) {
+		status.innerText = data.status;
+	});
+
 
 	let submitButtons = document.querySelectorAll('button[type="submit"]');
 

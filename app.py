@@ -45,6 +45,7 @@ from threading import Thread, Event
 import uuid
 import os
 import re
+from numpy import broadcast
 import requests
 import time
 import sys
@@ -132,25 +133,9 @@ def get_file(filename):
 	try:
 		r = requests.get(query_url+filename)
 		r.raise_for_status()
-		# r = requests.get(query_url+filename, headers={
-		# 	'User-Agent': 'request',
-		# 	'Authorization': f'token {github_token}'})
 
 		file_content = r.text
 
-		# print('file_content:', file_content) #remove #debug
-		# r.raise_for_status()
-		# data = r.json()
-		# file_content = data['content']
-		# file_content_encoding = data.get('encoding')
-		# if file_content_encoding == 'base64': file_content = base64.b64decode(file_content).decode()
-
-		# print('file_content:', file_content)
-		# return file_content
-
-		# print(filename, repo.get_contents())
-		# file = repo.get_contents(filename)
-		# print('file:', file)
 	except:
 		return False
 
@@ -171,11 +156,15 @@ def get_file(filename):
 # socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
 socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=[
 	'http://localhost:5000', 'https://localhost:5000',
-	'https://themed-party-playlist.herokuapp.com', 'https://themed-party-playlist.herokuapp.com/create-playlist',
-	'http://themed-party-playlist.herokuapp.com', 'http://themed-party-playlist.herokuapp.com/create-playlist',
+	'https://themed-party-playlist.herokuapp.com', 'https://themed-party-playlist.herokuapp.com/',
+	'http://themed-party-playlist.herokuapp.com', 'http://themed-party-playlist.herokuapp.com/',
+	'https://themed-party-playlist.herokuapp.com/create-playlist',
+	'http://themed-party-playlist.herokuapp.com/create-playlist',
 	'http://127.0.0.1:5000', 'http://127.0.0.1:5000/create-playlist', 
 	'https://127.0.0.1:5000', 'https://127.0.0.1:5000/create-playlist',
-	'http://0.0.0.0:5000', 'http://0.0.0.0:5000/create-playlist'])
+	'http://0.0.0.0:5000', 'http://0.0.0.0:5000/create-playlist', 'http://127.0.0.1:5000/'])
+
+connected_clients = [] #new
 
 #update_bookshelf Generator Thread
 bookshelf_thread = None
@@ -231,14 +220,26 @@ def reachedLimit():
 	# else: return True
 
 
+@socketio.on('connect')
+def register_client():
+	if request.sid not in connected_clients: connected_clients.append(request.sid)
+	print(f'connected: {request.sid}. (total connections: {len(connected_clients)})')
+	# global connected_clients
+
+@socketio.on('disconnect')
+def unregister_client():
+	print('disconnected:', request.sid)
+	if request.sid in connected_clients: connected_clients.remove(request.sid)
+	# connected_clients.append(request.sid)
+
+
 class BookshelfThread(Thread):
 	def __init__(self):
 		self.delay = 1
 		super(BookshelfThread, self).__init__()
 	def update_bookshelf(self):
-		print('updating bookshelf')
+		print('updating bookshelf') #debug
 
-		# songs_with_lyrics = []
 		global albums
 		albums = [] #reset
 		global songs_with_lyrics
@@ -256,12 +257,53 @@ class BookshelfThread(Thread):
 
 					albums.append(album)
 
-					socketio.emit('new_album', {'album': album, 'count': len(albums), 'description': song['name']}, broadcast=True)
+					socketio.emit('new_album', {'album': album, 'count': len(albums), 'description': song['name'], 'lyrics': song['lyrics']}, broadcast=True)
 					socketio.sleep(self.delay)
 				else:
 					song_count -= 1
 					socketio.emit('skip_song', {'song_count': song_count}, broadcast=True)
-			socketio.emit('got_lyrics', broadcast=True)
+			
+			def get_matches():
+				print('get_matches func!') #remove #debug
+				global matches_thread
+
+				if matches_thread is None:
+					thread_stop_event.clear()
+
+					global matches
+					matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+					# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+
+					# print('starting MatchesThread...') #debug
+					# socketio.emit('finding_matches', broadcast=True)
+
+					# matches_thread = MatchesThread()
+					# matches_thread.start()
+					print('okay....') #remove #debug
+					
+					def start_matches_thread():
+						print('start_matches_thread....') #remove #debug
+						matches_thread = MatchesThread()
+						matches_thread.start()
+					
+					# def status_update():
+
+					# 	print('disconnect :(')
+					# 	print('connected_clients:', connected_clients, request.sid, request.sid in connected_clients)
+
+					print('connected_clients:', connected_clients) #remove #debug
+
+					# socketio.on_event('connected', start_matches_thread)
+					# socketio.on_event('disconnect', status_update)
+
+					# socketio.on_event('ready', start_matches_thread)
+
+					# print('!!!', request.sid in connected_clients) #remove #debug
+					if request.sid in connected_clients: start_matches_thread()
+					else: socketio.on_event('connected', start_matches_thread) #specific connected event for /create-playlist
+					# socketio.emit('finding_matches', {}, callback=start_matches_thread, broadcast=True)
+
+			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, callback=get_matches, broadcast=True)
 			
 			# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 
@@ -278,8 +320,8 @@ class MatchesThread(Thread):
 	def __init__(self):
 		self.delay = 1
 		super(MatchesThread, self).__init__()
-	def update_bookshelf(self):
-		print('updating bookshelf (again)')
+	def update_bookshelf_with_matches(self):
+		print('updating bookshelf (again), this time to contain only matches') #debug
 
 		socketio.emit('finding_matches', broadcast=True)
 
@@ -291,6 +333,7 @@ class MatchesThread(Thread):
 			song_count = len(songs_with_lyrics)
 			for song in songs_with_lyrics:
 				if song in matches:
+					print(f'song {song["name"]} is a match.')
 					subSongs.append(song['id'])
 
 					if len(subSongs) == 100:
@@ -298,7 +341,7 @@ class MatchesThread(Thread):
 						subSongs = []
 				else:
 					song_count -= 1
-					print('removing:', song['name'], song_count)
+					print('removing:', song['name'], song_count) #debug
 					el_id = song['name'].replace(' ', '-')
 					socketio.emit('remove_album', {'id': el_id, 'name': song['name'], 'song_count': song_count}, broadcast=True)
 					# socketio.sleep(2000)
@@ -311,37 +354,47 @@ class MatchesThread(Thread):
 			socketio.emit('done', {'song_count': song_count}, broadcast=True)
 			thread_stop_event.set()
 	def run(self):
-		self.update_bookshelf()
+		self.update_bookshelf_with_matches()
 
 
 @socketio.on('bookshelf')
-def connect():
-	print('connecting...')
+def bookshelf():
+	print('restarting bookshelf...') #remove #debug
 	global bookshelf_thread
 
 	if bookshelf_thread is None and spotify is not None:
-		print('starting BookshelfThread...')
+		print('starting BookshelfThread...') #debug
 		bookshelf_thread = BookshelfThread()
 		bookshelf_thread.start()
 
 
-@socketio.on('find_matches')
-def get_matches():
-	global matches_thread
+# @socketio.on('find_matches')
+# def get_matches():
+# 	global matches_thread
 
-	if matches_thread is None:
-		thread_stop_event.clear()
+# 	if matches_thread is None:
+# 		thread_stop_event.clear()
 
-		global matches
-		matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+# 		global matches
+# 		matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+# 		# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 
-		print('starting MatchesThread...')
-		matches_thread = MatchesThread()
-		matches_thread.start()
+# 		print('starting MatchesThread...')
+
+# 		def start_matches_thread():
+# 			matches_thread = MatchesThread()
+# 			matches_thread.start()
+
+# 		socketio.emit('finding_matches', broadcast=True, callback=start_matches_thread)
+		
+# 		# matches_thread = MatchesThread()
+# 		# matches_thread.start()
 
 
 @app.route('/create-playlist')
 def create_playlist():
+	print('rendering create-playlist page.') #remove #debug
+	
 	if spotify: return render_template('create-playlist.html', song_count=len(songs), async_mode=socketio.async_mode)
 	else: return redirect('/')
 
@@ -351,28 +404,36 @@ nlpThread = None
 songsThread = None
 
 def load_nlp():
-	print('loading nlp...')
+	print('loading nlp...') #debug
 	global nlp
 	while True:
 		if nlp is not None: break
 		socketio.sleep(1)
 		nlp = gensim_api.load("glove-wiki-gigaword-300")
 	
-	print('done loading nlp.')
+	print('done loading nlp.') #debug
 	global status
+	
 	status = 'Getting songs'
+	socketio.emit('new_status', {'status': status}, broadcast=True)
+
+# @socketio.on('connect')
 
 
-#do this right away
-# if nlpThread is None:
-# 	nlpThread = socketio.start_background_task(target=load_nlp)
-	# nlpThread = Thread(target=load_nlp)
-	# nlpThread.start()
+@socketio.on('request_nlp')
+def request_nlp():
+	global nlpThread
+
+	if nlpThread is None:
+		nlpThread = Thread(target=load_nlp)
+		nlpThread.start()
 
 
 @app.route('/', methods=['GET', 'POST'])
 def sign_in():
-	print('back to index page') #remove #debug
+	# print(request.url, '\n') #remove #debug
+	# print(request.headers) #remove #debug
+	print('rendering index page.') #remove #debug
 	global bookshelf_thread
 	global matches_thread
 
@@ -383,12 +444,6 @@ def sign_in():
 	songs_thread_stop_event.clear() #unset it
 
 	global status
-
-	global nlpThread
-	
-	if nlpThread is None:
-		nlpThread = Thread(target=load_nlp)
-		nlpThread.start()
 
 	sim_words = []
 
@@ -429,6 +484,11 @@ def sign_in():
 			input_info['method'] = request.form.get('method')
 			input_info['stopCondition'] = request.form.get('stopCondition')
 			input_info['saveAs'] = request.form.get('saveAs')
+
+			current_time = time.mktime(time.localtime())
+			print('current_time:', current_time) #remove #debug
+			print(time.localtime()) #remove #debug
+
 			input_info['trainTime'] = int(request.form.get('trainTime'))*60 #convert to seconds
 
 			if input_info['stopCondition'] == 'None': input_info['stopCondition'] = None
@@ -446,8 +506,7 @@ def sign_in():
 
 				songs = [] #reset
 
-				# while True:
-				while not songs_thread_stop_event.is_set(): #new
+				while not songs_thread_stop_event.is_set():
 					if len(songs): break
 					socketio.sleep(1)
 					if input_info['method'] != 'genius': songs = themes.get_songs(spotify, input_info)
@@ -459,22 +518,9 @@ def sign_in():
 					csv_file = get_file(f'{theme}.csv')
 
 					if csv_file: # import io # io.StringIO(csv_file) #StringIo
-						# csv_reader = csv.DictReader(csv_file.splitlines(), fieldnames=['name', 'artist', 'lyrics'])
 						csv_reader = csv.DictReader(StringIO(csv_file), fieldnames=['name', 'artist', 'lyrics'])
 
 						for row in csv_reader:
-							# print('row:', row['lyrics']) #remove #debug
-							# file_content = row['lyrics']
-							# file_content_encoding = data.get('encoding')
-							# if file_content_encoding == 'base64': file_content = base64.b64decode(file_content).decode()
-							# file_content_encoding = row.get('encoding')
-
-							# print(file_content_encoding, 'z1')
-							# if file_content_encoding == 'base64': file_content = base64.b64decode(file_content).decode()
-
-							# print(file_content_encoding, 'z1dfgs')
-
-
 							relevant_lyrics.append(row)
 					else:
 						timeout_start = time.time()
@@ -531,130 +577,22 @@ def sign_in():
 								)
 					songs_thread_stop_event.set()
 
-			# global songs
-			# songs = [] #reset
-
 			global songsThread
 		
-			# if songsThread is None and input_info['method'] != 'genius':
 			songsThread = Thread(target=getSongs)
 			songsThread = socketio.start_background_task(target=getSongs)
 		else:
 			songsThread.join()
 			
 			status = 'Ready to create playlist'
-			# if input_info['method'] != 'genius': songsThread.join()
 
-			# global relevant_lyrics
-			# for w in request.form.keys():
-			# 	if request.form[w] != 'None':
-			# 		terms.append(w)
-
-			# 		csv_file = get_file(f'{w}.csv')
-
-			# 		if csv_file:
-			# 			# with open(f'/static/lyrics/{w}.csv', newline='') as csv_file:
-			# 			csv_reader = csv.DictReader(csv_file)
-
-			# 			for row in csv_reader:
-			# 				relevant_lyrics.append(row)
-			# 					# relevant_lyrics.append(
-			# 					# 	{
-			# 					# 		'name': row['name'],
-			# 					# 		'artist': row['artist'],
-			# 					# 		'lyrics': row['lyrics']
-			# 					# 	}
-			# 					# )
-			# 		else:
-			# 			f = 'name,artist,lyrics'
-			# 			# with open(f'{w}.csv', 'w', newline='') as csv_file:
-			# 			# csv_writer = csv.DictWriter(csv_file, fieldnames=['name', 'artist', 'lyrics'])
-
-			# 			# csv_writer.writeheader()
-
-			# 			page = 1
-			# 			while True:
-			# 				print('page:', page, len(relevant_lyrics)) #remove #debug
-			# 				term_lyrics = genius.search_lyrics(w, per_page=20, page=page)
-
-			# 				if not len(term_lyrics['sections'][0]['hits']): break
-
-			# 				for hit in term_lyrics['sections'][0]['hits']:
-			# 					song_name = hit['result']['title']
-			# 					url = hit['result']['url']
-
-			# 					song_lyrics = genius.lyrics(song_url=url)
-
-			# 					if song_lyrics is not None:
-			# 						song_lyrics = re.sub(r'[\d+]?EmbedShare URLCopyEmbedCopy|"', '', song_lyrics)
-			# 						song_info = {
-			# 							'name': song_name,
-			# 							'artist': hit['result']['primary_artist']['name'],
-			# 							'lyrics': song_lyrics
-			# 						}
-
-			# 						relevant_lyrics.append(song_info)
-
-			# 						f += f'\n{song_info["name"]},{song_info["artist"]},"{song_info["lyrics"]}"'
-			# 						# csv_writer.writerow(song_info)
-
-			# 				page += 1
-
-			# 			# github_file = repo.create_file(f'{w}.csv', 'create_file via PyGithub', csv_file.read())
-			# 			github_file = repo.create_file(f'{w}.csv', 'create_file via PyGithub', f)
-
-
-			# 		print('len of rel lyrics:', len(relevant_lyrics))
-
-			# 		# term_lyrics = genius.search_lyrics(w, per_page=50)
-
-			# 		# for hit in term_lyrics['sections'][0]['hits']:
-			# 		# 	# print(hit['result'].keys())
-			# 		# 	song_name = hit['result']['title']
-			# 		# 	url = hit['result']['url']
-
-			# 		# 	song_lyrics = genius.lyrics(song_url=url)
-
-			# 		# 	# if song_lyrics is not None: relevant_lyrics.append(song_lyrics)
-			# 		# 	if song_lyrics is not None:
-			# 		# 		relevant_lyrics.append(
-			# 		# 			{
-			# 		# 				'name': song_name,
-			# 		# 				'artist': hit['result']['primary_artist']['name'],
-			# 		# 				'lyrics': song_lyrics
-			# 		# 			}
-			# 		# 		)
-			# 		# 		# relevant_lyrics[song_name] = song_lyrics
-
-			# if input_info['method'] == 'genius':
-			# 	global songs
-			# 	for song in relevant_lyrics:
-			# 		# item = spotify.search(song['name'], type='track', limit=1) #TODO: search with artist
-			# 		results = spotify.search(q=f"artist:{song['artist']} track:{song['name']}", type='track', limit=1)['tracks'] #TODO: search with artist
-			# 		if results['total'] > 0:
-			# 			item = results['items'][0]
-			# 			songs.append(
-			# 				{
-			# 					'name': item['name'],
-			# 					'artists': [artist['name'] for artist in item['artists']],
-			# 					'duration': item['duration_ms'],
-			# 					'release_date': item['album']['release_date'],
-			# 					'id': item['id'],
-			# 					'album_art': item['album']['images'][0]['url'],
-			# 					'lyrics': song['lyrics']
-			# 				}
-			# 			)
-			# 	# songs = relevant_lyrics.copy()
-			# 	# relevant_lyrics = []
-			
 			print('terms:', terms) #remove #debug
-
-			# import topic
-			# topic.top_lyrics(songs, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 
 			return redirect(url_for('create_playlist'))
 
-	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'])
+	current_time = time.localtime()
+
+	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], current_time=f'{current_time.tm_hour}:{current_time.tm_min}', async_mode=socketio.async_mode)
 
 
 
@@ -662,11 +600,4 @@ def sign_in():
 if __name__ == "__main__":
 	# socketio.run(app)
 	socketio.run(app, port=port)
-		# socketio.run(app, port=port, debug=True)
-
-	# socketio.run(app,  port=int(os.environ.get('PORT', 5000)), debug=True)
-
-
-# Installing collected packages: protobuf, tensorflow-hub, libclang, tensorflow-estimator, google-pasta, astunparse, opt-einsum, oauthlib, requests-oauthlib, pyasn1, rsa, pyasn1-modules, cachetools, google-auth, google-auth-oauthlib, tensorboard-data-server, absl-py, tensorboard-plugin-wit, grpcio, zipp, importlib-metadata, markdown, tensorboard, termcolor, wrapt, keras, keras-preprocessing, flatbuffers, h5py, tensorflow-io-gcs-filesystem, gast, tensorflow, tensorflow-text
-
-# Successfully installed absl-py-1.0.0 astunparse-1.6.3 cachetools-4.2.4 flatbuffers-2.0 gast-0.4.0 google-auth-2.3.3 google-auth-oauthlib-0.4.6 google-pasta-0.2.0 grpcio-1.42.0 h5py-3.6.0 importlib-metadata-4.8.2 keras-2.7.0 keras-preprocessing-1.1.2 libclang-12.0.0 markdown-3.3.6 oauthlib-3.1.1 opt-einsum-3.3.0 protobuf-3.19.1 pyasn1-0.4.8 pyasn1-modules-0.2.8 requests-oauthlib-1.3.0 rsa-4.8 tensorboard-2.7.0 tensorboard-data-server-0.6.1 tensorboard-plugin-wit-1.8.0 tensorflow-2.7.0 tensorflow-estimator-2.7.0 tensorflow-hub-0.12.0 tensorflow-io-gcs-filesystem-0.22.0 tensorflow-text-2.7.3 termcolor-1.1.0 wrapt-1.13.3 zipp-3.6.0
+	# socketio.run(app, port=int(os.environ.get('PORT', 5000)), debug=True)

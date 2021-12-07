@@ -19,7 +19,9 @@ gc.collect()
 def handle_warning(w):
 	warnings.warn(f'warning: {w}', UserWarning)
 
-def top_lyrics(songs, terms, stopNum=None, relevant_lyrics=[]):
+def top_lyrics(songs, terms, stopNum=None, stopCondition=None, relevant_lyrics=[]):
+
+
 	# import os
 	# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -40,6 +42,8 @@ def top_lyrics(songs, terms, stopNum=None, relevant_lyrics=[]):
 		relevant_song_lyrics = [song['lyrics'] for song in relevant_lyrics]
 		lyrics.extend(relevant_song_lyrics)
 
+	print('stopNum:', stopNum)
+	if stopNum is not None: print(stopNum/60000, 'mins')
 	# while True:
 	# 	try:
 		# from requests.exceptions import Timeout
@@ -96,7 +100,12 @@ def top_lyrics(songs, terms, stopNum=None, relevant_lyrics=[]):
 
 	print(model.document_ids) #remove #debug
 
-	if stopNum is None: stopNum = len(model.documents) #TODO: have option of passing length (so if stopNum[0] (type) == 'duration', multiple by 5 [so extra], then, go backwards )
+	num_docs = len(model.documents)
+	if stopNum is None: stopNum = num_docs #TODO: have option of passing length (so if stopNum[0] (type) == 'duration', multiple by 5 [so extra], then, go backwards )
+
+	if stopCondition == 'duration': num_docs = min(num_docs, stopNum//120000) # 120000 = 2 minutes (average song length == 3.5 mins aka 210000 ms, so get a few extra songs incase they are short)
+	# num_docs = stopNum//210000
+	# stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']
 
 	vocab = model.vocab
 
@@ -107,16 +116,28 @@ def top_lyrics(songs, terms, stopNum=None, relevant_lyrics=[]):
 
 	print('valid terms:', valid_terms) #remove #debug
 
-	document_scores, document_ids = model.search_documents_by_keywords(keywords=valid_terms, num_docs=stopNum, return_documents=False)
+	document_scores, document_ids = model.search_documents_by_keywords(keywords=valid_terms, num_docs=num_docs, return_documents=False)
 
 	if relevant_lyrics_ct > 0: document_ids = [doc_id for doc_id in document_ids if doc_id < lyrics_ct]
 
 	matches = []
+
+	total_duration = 0
 	for idx, doc_id in enumerate(document_ids):
 		score = document_scores[idx]
 		if score > 0:
-			matches.append(songs[doc_id])
+			song = songs[doc_id]
+			matches.append(song)
 			print(f'song match: {song_names[doc_id]} (with score: {score})')
+
+			if stopCondition == 'duration':
+				song_duration = song['duration']
+				print(song_duration, type(song_duration)) #remove #debug
+				total_duration += song_duration
+				if total_duration >= stopNum:
+					print(f'breaking with total duration of {total_duration} because stopNum is {stopNum}.') #new #test
+					break
+			
 	
 
 	words, word_scores = model.similar_words(keywords=valid_terms, num_words=10) #*

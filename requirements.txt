@@ -12,6 +12,7 @@ cycler==0.11.0
 Cython==0.29.25
 Deprecated==1.2.13
 Flask==2.0.2
+gunicorn==20.1.0 #new
 Flask-Session==0.4.0
 Flask-SocketIO==5.1.1
 flatbuffers==2.0

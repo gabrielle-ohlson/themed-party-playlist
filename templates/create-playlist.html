@@ -171,12 +171,36 @@
 	}
 
 	@keyframes drop {
-		0%{opacity: 1}
-		20%{transform: rotate(var(--rotate_20));}
-		40%{transform: rotate(var(--rotate_40));}
-		60%{transform: rotate(var(--rotate_60)) translateX(var(--x_drop));}
-		80%{transform: rotate(var(--rotate_80));}
-		100%{opacity:0; transform: translateY(110vh)}
+		0%{
+			opacity: 1
+		}
+		20%{
+			transform: rotate(var(--rotate_20)) translate(calc(var(--x_drop) * 0.2px), 20vh);
+		}
+		/* 40%{
+			transform: rotate(var(--rotate_40) translate(calc(var(--x_drop)/2), 30vh));
+		} */
+		/* 60%{
+			transform: rotate(var(--rotate_60)) translate(var(--x_drop), 60vh);
+		} */
+		60%{
+			transform: rotate(var(--rotate_60)) translate(calc(var(--x_drop) * 0.6px), 60vh);
+		}
+		80%{
+			transform: rotate(var(--rotate_80)) translate(calc(var(--x_drop) * 0.8px), 80vh);
+		}
+		/* 80%{
+			transform: rotate(var(--rotate_80) translate(var(--x_drop), 80vh));
+		} */
+		100%{
+			opacity:0;
+			transform: translate(calc(var(--x_drop) * 1px), 110vh)
+		}
+		/* 100%{opacity:0; transform: translateY(110vh)} */
+	}
+
+	#lyrics-container {
+		display: none;
 	}
 
 </style>
@@ -193,16 +217,19 @@
 <div id="bookshelf-container">
 	<div id="bookshelf" class="bookshelf"></div>
 <div id="carousel-container"></div>
+<div id="lyrics-container"></div>
 </div>
 
 <script>
 
 	var socket = io.connect();
 
-	console.log('check 1', socket.connected); //debug
+	console.log('connected:', socket.connected); //debug
+
 	socket.on('connect', function() {
+		if (socket.connected) socket.emit('connected'); //
 		socket.emit('bookshelf');
-		console.log('check 2', socket.connected); //debug
+		console.log('connected:', socket.connected); //debug
 	});
 
 	let status = document.getElementById('status');
@@ -237,12 +264,12 @@
 
 		let min = -360;
 		let max = 360;
-		for (let n = 20; n <= 100; n+=10) {
+		for (let n = 20; n <= 100; n+=10) { //TODO: change to new rotation (less vars)
 			let rand_rotation = Math.random() * (max-min+1)+min;
-			console.log('rand_rotation:', rand_rotation); //remove //debug
 			doc_root.style.setProperty(`--rotate_${n}`, rand_rotation+'deg');
 		}
-		doc_root.style.setProperty('--x_drop', `${x_pos + (Math.random() * browser_half_width)}px`);
+		// doc_root.style.setProperty('--x_drop', `${x_pos + (Math.random() * browser_half_width)}px`);
+		doc_root.style.setProperty('--x_drop', Math.abs(x_pos + (Math.random() * browser_half_width)));
 
 		el.classList.add('dropping');
 
@@ -254,7 +281,7 @@
 			el.classList.remove('dropping');
 			el.remove();
 			console.log('done dropping.'); //debug
-		}, 5000); // 5 seconds
+		}, 6000); // 6 seconds
 	}
 
 
@@ -273,12 +300,13 @@
 	let carouselContainer = document.getElementById('carousel-container');
 
 	let new_bookshelf = false;
+
 	socket.on('new_album', function(data, cb) {
 		if (new_bookshelf) { //change z-index right before new album is added (so we can see the last album in prev bookshelf being added)
 			bookshelf.style.zIndex = bookshelf_idx;
 			new_bookshelf = false;
 		}
-		console.log('new album!', data.album, data.count); //remove //debug
+		// console.log('new album!', data.album, data.count); //remove //debug
 		songIdx.innerText = data.count;
 		songTitle.innerText = data.description;
 		// songDesc.innerText = 'Song (' + data.count + '/' + {{song_count|tojson}} + '):\n' + data.description;
@@ -286,6 +314,12 @@
 		let album_img = document.createElement('img');
 		album_img.id = data.description.replace(/ /g, '-');
 		album_img.src = data.album;
+		album_img.dataset.lyrics = data.lyrics; //new
+
+		album_img.onclick = function() {
+
+		}
+
 		bookshelf.appendChild(album_img);
 
 		if (data.count % 15 == 0) {
@@ -362,13 +396,15 @@
 		songCount.innerText = data.song_count;
 	});
 
-	socket.on('got_lyrics', function() {
-		status.innerText = 'Generating jointly embedded topic/doc vectors';
-		// status.innerText = 'Searching for matches';
-		socket.emit('find_matches');
+	socket.on('got_lyrics', function(data, cb) {
+		// status.innerText = 'Generating jointly embedded topic/doc vectors';
+		status.innerText = data.status;
+		cb();
+		// socket.emit('find_matches');
 	});
 
-	socket.on('finding_matches', function() {
+	socket.on('finding_matches', function(data, cb) {
+		console.log('finding matches now...'); //remove //debug
 		status.innerText = 'Searching for matches and removing irrelevant tracks';
 		carouselContainer.style.display = 'none';
 	});
@@ -387,11 +423,12 @@
 			el.style.display = 'none';
 		});
 
+		console.log('removing', data.id); //remove //debug
 		console.log(album2remove.parentElement); //remove //debug
 		album2remove.parentElement.style.display = 'flex';
 
 		randomFall(album2remove);
-		console.log(album2remove); //remove //debug
+		console.log('!', album2remove); //remove //debug
 		// album2remove.remove();
 	});
 
