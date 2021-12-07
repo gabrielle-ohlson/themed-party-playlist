@@ -1,0 +1,79 @@
+<html>
+<head>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.0/socket.io.js"></script>
+	<link rel="preconnect" href="https://fonts.gstatic.com">
+	<link href="https://fonts.googleapis.com/css2?family=Rubik&display=swap" rel="stylesheet">
+
+<style>
+	body {
+		background-color: #191414;
+		color: #fff;
+	}
+	
+	* {
+		font-family: "Rubik", "sans-serif";
+	}
+
+	div {
+		text-align: center;
+		margin-top: 50px;
+	}
+
+	h1 {
+		color: #1db954; /* #1ed760 */
+		/* color: red; */
+		font-size: 40pt;
+	}
+
+	p {
+		font-size: 24pt;
+		color: #1ed760;
+	}
+
+	#wait {
+		position: absolute;
+	}
+
+	select {
+		max-width: 80vw;
+	}
+
+	input[type=time]::-webkit-datetime-edit-ampm-field {
+		display: none;
+	}
+
+	.without::-webkit-datetime-edit-ampm-field {
+		display: none;
+	}
+
+
+	input[type=time]::-webkit-clear-button {
+		-webkit-appearance: none;
+		-moz-appearance: none;
+		-o-appearance: none;
+		-ms-appearance:none;
+		appearance: none;
+		margin: -10px; 
+	}
+
+	.datetime-edit-field {
+		display: none !important;
+	}
+
+	span.datetime-edit-field.numeric {
+		display: inline !important;
+	}
+
+
+
+</style>
+</head>
+
+<body>
+<div>
+	<h1>Themed Party Playlist: Spotify AI</h1><br>
+	<p id="status"><a href="{{ auth_url }}">Sign in</a></p>
+</div>
+
+</body>
+</html>

@@ -30,16 +30,49 @@
 		color: #1ed760;
 	}
 
+	#wait {
+		position: absolute;
+	}
+
 	select {
 		max-width: 80vw;
 	}
+
+	input[type=time]::-webkit-datetime-edit-ampm-field {
+		display: none;
+	}
+
+	.without::-webkit-datetime-edit-ampm-field {
+		display: none;
+	}
+
+
+	input[type=time]::-webkit-clear-button {
+		-webkit-appearance: none;
+		-moz-appearance: none;
+		-o-appearance: none;
+		-ms-appearance:none;
+		appearance: none;
+		margin: -10px; 
+	}
+
+	.datetime-edit-field {
+		display: none !important;
+	}
+
+	span.datetime-edit-field.numeric {
+		display: inline !important;
+	}
+
+
+
 </style>
 </head>
 
 <body>
 <div>
-	<h1>Welcome!</h1><br>
-	<p>Themed Party Playlist: Spotify AI</p>
+	<h1>Themed Party Playlist: Spotify AI</h1><br>
+	<p id="status">{{ status }}<span id="wait"></span></p>
 </div>
 <form action="{{ url_for('sign_in')}}" method="post">
 	<label for="theme">Party theme:</label>
@@ -50,6 +83,7 @@
 		<option value="top tracks"><button>top tracks</button></option>
 		<option value="saved tracks"><button>saved tracks</button></option>
 		<option value="playlist"><button>existing playlist</button></option>
+		<option value="genius"><button>search lyrics on Genius</button></option>
 	</select>
 	<span id="playlistNameContainer" style="display: none">
 		<label id="playlistNameLabel" for="playlistName">Name of an existing playlist from your spotify account:</label>
@@ -67,32 +101,64 @@
 	</select>
 	<span id="stopNumContainer" style="display:none">
 		<label id="stopNumLabel" for="stopNum">Number associated with your chosen condition:</label>
-		<input type="number" id="stopNum" name="stopNum" placeholder="input stop condition number"/> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
+		<input type="number" min="0" oninput="validity.valid||(value='');" id="stopNum" name="stopNum" placeholder="input stop condition number"/> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
 	</span>
 	<br>
 	<label for="saveAs">Save as:</label>
 	<input type="text" id="saveAs" name="saveAs" placeholder="leave blank for default"/>
 	<br>
+	<label for="trainTime">How much time do you have to train the model?</label>
+	<input type="number" min="0" oninput="validity.valid||(value='');" id="trainTime" name="trainTime" value=15 size=5/><span>minutes</span> <!-- TODO: have this appear in the other form below if no csv file for theme -->
+	<br>
 	<button type="submit">Submit!</button>
 </form>
 <div id="def-container" style="display:{{ def_display }}">
-	<label for="def-form"><b>Definitions to use for {{ theme }}</b></label>
+	<label for="def-form"><b>Related terms to use for '{{ theme }}':</b></label>
 	<form name="def-form" action="{{ url_for('sign_in')}}" method="post">
-		{% for w in words_defs: %}
-		<label for="{{ w[0] }}">Related term '{{ w[0] }}':</label>
-			<select name="{{ w[0] }}" class="0">
-			<option value="None"><button>Exclude term</button></option>
-			{% for val in w[1]: %}
-			<option value="{{ val[0] }}"><button>{{ val[1] }}</button></option>
-			{% endfor %}
-			</select>
+		{% for w in sim_words: %}
+		<input type="checkbox" id="{{ w }}" name="{{ w }}" />
+		<label for="{{ w }}">Include '{{ w }}'</label>
 			<br>
 		{% endfor %}
-		<button type="submit">Submit!</button>
+		<button type="submit" onclick="get_lyrics()">Submit!</button>
 	</form>
 </div>
 
 <script>
+	var socket = io.connect();
+
+	// socket.on('connect', function() {
+	// 	socket.emit('bookshelf');
+	// 	console.log('check 2', socket.connected);
+	// });
+
+	function get_lyrics() {
+		socket.emit('get_lyrics');
+	}
+
+	socket.on('lyrics', function() {
+
+	});
+
+	let submitButtons = document.querySelectorAll('button[type="submit"]');
+
+	submitButtons.forEach(el => {
+		el.onclick = function() {
+			console.log(el.parentElement, el.parentElement.checkValidity());
+			if (el.parentElement.checkValidity()) el.style.display = 'none';
+		}
+	});
+
+	let wait = document.getElementById('wait');
+	
+	let counter = 0;
+	let dots = window.setInterval(function() {
+		counter += 1
+		let num = counter%6;
+		if (num < 4) wait.innerHTML = '.'.repeat(num);
+		else wait.innerHTML = '.'.repeat(6-num);
+	}, 350);
+
 	let theme_input = document.getElementById('theme');
 
 	let method_input = document.getElementById('method');
@@ -103,6 +169,7 @@
 	let stopCondition_input = document.getElementById('stopCondition');
 	let stopNumContainer = document.getElementById('stopNumContainer');
 	let stopNum_label = document.getElementById('stopNumLabel');
+	let stopNum_input = document.getElementById('stopNum');
 
 	let saveAs_input = document.getElementById('saveAs');
 
@@ -158,10 +225,17 @@
 		if (ev.target.value === 'duration') {
 			stopNumContainer.style.display = 'block';
 			stopNum_label.innerText = 'Max playlist duration (in minutes):';
+			stopNum_input.step = 'any';
+			stopNum_input.required = true;
 		} else if (ev.target.value === 'song count') {
 			stopNumContainer.style.display = 'block';
 			stopNum_label.innerText = 'Max number of songs:';
-		} else stopNumContainer.style.display = 'none';
+			stopNum_input.required = true;
+			stopNum_input.step = 1;
+		} else {
+			stopNumContainer.style.display = 'none';
+			stopNum_input.required = false;
+		}
 	});
 
 

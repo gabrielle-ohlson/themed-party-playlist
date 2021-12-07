@@ -17,10 +17,10 @@ config.py
 
 # Debug/backup files
 ignore/
-<<<<<<< HEAD
 * copy*
 
 passwords.txt
-=======
-* copy*
->>>>>>> e5a40e0de6eeec7a7ae72a8827bbde8319080ffb
+*-prev*
+*-old*
+
+dependencies-list.txt
