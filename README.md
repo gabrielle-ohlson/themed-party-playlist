@@ -26,9 +26,17 @@ torch==1.10.0+cpu
 ```
  *for heroku performance/storage reasons)*
 
+`pip show <package>` to see dependencies and packages it is required by
+
+`heroku run bash -a <appname>` and then `du -ha --max-depth 1 /app | sort -hr` to determine what files/folders are taking up space in your slug
+
 ## TODO:
 - [ ] make sign in page look nice
 - [x] add customization options if certain form elements are chosen
 - [ ] add spinning record player
 - [ ] js: get name of songs + lyrics kw matches for theme + display in html
 - [ ] test out NLTK vs torchtext
+- [ ] reduce slug size
+
+## Helpful tips:
+- https://devcenter.heroku.com/articles/slug-compiler#build-cache

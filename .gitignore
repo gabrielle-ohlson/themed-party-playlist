@@ -24,3 +24,6 @@ passwords.txt
 *-old*
 
 dependencies-list.txt
+
+toni.ini
+.slugignore
