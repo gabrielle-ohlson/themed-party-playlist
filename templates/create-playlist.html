@@ -81,6 +81,7 @@
 		/* flex-shrink: 3; */
 		width: 11.9vh;
 		height:11.9vh;
+		cursor: pointer;
 		/* width: 30%;
 		height:16%; */
 		/* width: 2px; */
@@ -203,6 +204,13 @@
 		display: none;
 		height: 100vh;
 		width: 100vw;
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+
+	#close-button {
+
 	}
 
 </style>
@@ -223,15 +231,35 @@
 <div id="lyrics-container"></div>
 <script>
 
-	var socket = io.connect();
+	var socket = io.connect(location.href);
 
 	console.log('connected:', socket.connected); //debug
 
 	socket.on('connect', function() {
 		if (socket.connected) socket.emit('connected'); //
-		socket.emit('bookshelf');
+		// socket.emit('bookshelf', {data: window.location.pathname});
 		console.log('connected:', socket.connected); //debug
+		socket.emit('bookshelf');
 	});
+
+	window.onbeforeunload = function (ev) {
+		ev.preventDefault();
+		console.log('leaving');
+		socket.close();
+		// socket.emit('leave_page', {'page': '/create-playlist'});
+		// socket.disconnect();
+		alert('leaving page...'); //remove //debug
+		return ev.returnValue = "Are you sure you want to exit?";
+	}
+
+	// if (window.confirm("Do you really want to leave?")) {
+	// 	window.open("exit.html", "Thanks for Visiting!");
+	// }
+
+
+	window.onpopstate = function(ev) {
+		alert('popstate');
+	}
 
 	let status = document.getElementById('status');
 	let wait = document.getElementById('wait');
@@ -309,7 +337,7 @@
 			bookshelf.style.zIndex = bookshelf_idx;
 			new_bookshelf = false;
 		}
-		// console.log('new album!', data.album, data.count); //remove //debug
+		console.log('new album!', data.album, data.count); //remove //debug
 		songIdx.innerText = data.count;
 		songTitle.innerText = data.description;
 		// songDesc.innerText = 'Song (' + data.count + '/' + {{song_count|tojson}} + '):\n' + data.description;
@@ -397,10 +425,12 @@
 	});
 
 	socket.on('skip_song', function(data, cb) {
+		console.log('event: skip_song'); //remove //debug
 		songCount.innerText = data.song_count;
 	});
 
 	socket.on('got_lyrics', function(data, cb) {
+		console.log('event: got_lyrics'); //remove //debug
 		// status.innerText = 'Generating jointly embedded topic/doc vectors';
 		status.innerText = data.status;
 		cb();
@@ -408,12 +438,13 @@
 	});
 
 	socket.on('finding_matches', function(data, cb) {
-		console.log('finding matches now...'); //remove //debug
+		console.log('event: finding_matches'); //remove //debug
 		status.innerText = 'Searching for matches and removing irrelevant tracks';
 		carouselContainer.style.display = 'none';
 	});
 
 	socket.on('remove_album', function(data, cb) {
+		console.log('event: remove_album'); //remove //debug
 		songDesc.innerHTML = `Songs left: <span style="color:#fff">${data.song_count}</span><br>Removing song: <span style="color:#fff">${data.name}</span>`;
 		let album2remove = document.getElementById(data.id);
 		let bookshelves = document.querySelectorAll('.bookshelf');
@@ -432,8 +463,6 @@
 		album2remove.parentElement.style.display = 'flex';
 
 		randomFall(album2remove);
-		console.log('!', album2remove); //remove //debug
-		// album2remove.remove();
 	});
 
 	socket.on('done', function(data, cb) {

@@ -63,7 +63,7 @@ def top_lyrics(songs, terms, stopNum=None, stopCondition=None, relevant_lyrics=[
 		print('trying...')
 		try:
 			# model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder', workers=5)
-			model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder')
+			model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder', use_embedding_model_tokenizer=True)
 			print(f'successful! (after {retries} retries)')
 			break
 		# catch

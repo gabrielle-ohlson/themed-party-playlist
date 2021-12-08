@@ -72,7 +72,7 @@
 <body>
 <div>
 	<h1>Themed Party Playlist: Spotify AI</h1><br>
-	<p id="status" class="loading">{{ status }}<span id="wait"></span></p>
+	<p><span id="status" class="loading">{{ status }}</span><span id="wait"></span></p>
 </div>
 <form action="{{ url_for('sign_in')}}" method="post">
 	<label for="theme">Party theme:</label>
@@ -128,12 +128,20 @@
 		<label for="{{ w }}">Include '{{ w }}'</label>
 			<br>
 		{% endfor %}
-		<button type="submit" onclick="get_lyrics()">Submit!</button>
+		<button type="submit">Submit!</button>
 	</form>
 </div>
 
 <script>
 	var socket = io.connect();
+
+	// console.log({{sim_words}}); //remove //debug
+	// console.log(location.host, location.protocol, location);
+	// console.log(location.href, location.host, location.hostname);
+	// let connect_url = 'http://' + document.domain;
+	// if (location.port) connect_url += `:${location.port}`;
+	// console.log(connect_url);
+	// console.log(location.href);
 
 	console.log('connected:', socket.connected);
 

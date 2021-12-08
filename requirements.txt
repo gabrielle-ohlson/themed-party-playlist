@@ -12,7 +12,6 @@ cycler==0.11.0
 Cython==0.29.25
 Deprecated==1.2.13
 Flask==2.0.2
-gunicorn==20.1.0
 Flask-Session==0.4.0
 Flask-SocketIO==5.1.1
 flatbuffers==2.0
@@ -26,6 +25,7 @@ google-auth-oauthlib==0.4.6
 google-pasta==0.2.0
 greenlet==1.1.2
 grpcio==1.42.0
+gunicorn==20.1.0
 h5py==3.6.0
 hdbscan==0.8.27
 idna==3.3
@@ -56,6 +56,7 @@ pyasn1-modules==0.2.8
 pycparser==2.21
 PyGithub==1.55
 PyJWT==2.3.0
+pymagnitude==0.1.143
 PyNaCl==1.4.0
 pynndescent==0.5.5
 pyparsing==3.0.6

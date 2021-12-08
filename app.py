@@ -54,6 +54,7 @@ import lyricsgenius
 import spotipy
 
 from github import Github #TODO: install
+from pymagnitude import *
 
 import themes
 import topic
@@ -74,7 +75,7 @@ while True:
 		maxInt = int(maxInt/10)
 
 
-import gensim.downloader as gensim_api
+# import gensim.downloader as gensim_api
 nlp = None
 
 # We must now create our app, which I will store in a variable called `app`:
@@ -131,7 +132,6 @@ def get_file(filename):
 		r.raise_for_status()
 
 		file_content = r.text
-
 	except:
 		return False
 
@@ -205,28 +205,59 @@ def reachedLimit():
 
 @socketio.on('connect')
 def register_client():
-	if request.sid not in connected_clients: connected_clients.append(request.sid)
-	print(f'connected: {request.sid}. (total connections: {len(connected_clients)})')
+	if request.namespace not in connected_clients: connected_clients.append(request.namespace)
+	# if request.sid not in connected_clients: connected_clients.append(request.sid)
+	print(f'connected: {request.sid}. Namespace: {request.namespace}. (total connections: {len(connected_clients)})')
+
+
+@socketio.on('connect', namespace='/create-playlist')
+def register_client():
+	if request.namespace not in connected_clients: connected_clients.append(request.namespace)
+	print(f'connected: {request.sid}. Namespace: {request.namespace}. (total connections: {len(connected_clients)})')
 
 
 @socketio.on('disconnect')
 def unregister_client():
-	print('disconnected:', request.sid)
-	if request.sid in connected_clients: connected_clients.remove(request.sid)
+	print('disconnected:', request.sid, request.namespace)
+	if request.namespace in connected_clients: connected_clients.remove(request.namespace)
 
 
-# @socketio.on('get-user-playlists')
-# def return_user_playlists():
-# 	userPlaylists = spotify.current_user_playlists(limit=50)
+@socketio.on('disconnect', namespace='/create-playlist')
+def unregister_client():
+	print('disconnected:', request.sid, request.namespace)
+	if request.namespace in connected_clients: connected_clients.remove(request.namespace)
 
-# 	socketio.emit('return-user-playlists', {'playlists': userPlaylists}, broadcast=True)
+
+# @socketio.on('leave_page', namespace='/create-playlist')
+# def reset_app(data):
+# 	print(data['page']) #*
+# 	global bookshelf_thread
+# 	global matches_thread
+
+# 	bookshelf_thread = None #reset
+# 	matches_thread = None #reset
+
+# 	thread_stop_event.clear() #unset it
+# 	songs_thread_stop_event.clear() #unset it
+
+# 	# socketio.stop() #?
+
+
+def await_connection(ns, cb=None):
+	while True:
+		if ns in connected_clients: break
+		print(f'namespace: {ns} not yet connected...') #debug
+		socketio.sleep(1)
+	
+	if cb is not None: cb()
+
+	print(f'namespace: {ns} is now connected!') #debug
 
 
 class BookshelfThread(Thread):
 	def __init__(self):
 		self.delay = 1
 		super(BookshelfThread, self).__init__()
-	# def update_bookshelf(self, app):
 	def update_bookshelf(self):
 		print('updating bookshelf') #debug
 
@@ -247,11 +278,11 @@ class BookshelfThread(Thread):
 
 					albums.append(album)
 
-					socketio.emit('new_album', {'album': album, 'count': len(albums), 'description': song['name'], 'lyrics': song['lyrics']}, broadcast=True)
+					socketio.emit('new_album', {'album': album, 'count': len(albums), 'description': song['name'], 'lyrics': song['lyrics']}, namespace='/create-playlist', broadcast=True)
 					socketio.sleep(self.delay)
 				else:
 					song_count -= 1
-					socketio.emit('skip_song', {'song_count': song_count}, broadcast=True)
+					socketio.emit('skip_song', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
 			
 			def get_matches():
 				global matches_thread
@@ -260,21 +291,22 @@ class BookshelfThread(Thread):
 					thread_stop_event.clear()
 
 					global matches
-					print('songs_with_lyrics:', songs_with_lyrics)
 					matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
-					# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 
-					# print('starting MatchesThread...') #debug
-					# socketio.emit('finding_matches', broadcast=True)
-
-					# matches_thread = MatchesThread()
-					# matches_thread.start()
-					print('okay....') #remove #debug
+					print('got matches.') #remove #debug
 					
 					def start_matches_thread():
+						# client = socketio.test_client(app=app) #client.stop()
+
+						# print('!', client.is_connected(namespace='/create-playlist'))
+
+						# print(client.is_connected('/create-playlist'))
+						# print(client.get_received('/create-playlist'))
+						# print('handlers:', client.handlers, 'namespace h:', client.namespace_handlers)
+						# socketio.handlers['/create-playlist'].pop('connected')
 						print('start_matches_thread....') #remove #debug
 						matches_thread = MatchesThread()
-						matches_thread.start() #current_app._get_current_object()
+						matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
 						
 					# def status_update():
 
@@ -300,11 +332,17 @@ class BookshelfThread(Thread):
 						# socketio.on_event('ready', start_matches_thread)
 
 						# print('!!!', request.sid in connected_clients) #remove #debug
-						if len(request.view_args) and request.sid in connected_clients: start_matches_thread()
-						else: socketio.on_event('connected', start_matches_thread) #specific connected event for /create-playlist
-						# socketio.emit('finding_matches', {}, callback=start_matches_thread, broadcast=True)
 
-			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, callback=get_matches, broadcast=True)
+						# if nlpThread is None:
+						connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
+						# args=('/create-playlist'))
+						connect_create_playlist.start()
+
+						# if len(request.view_args) and request.sid in connected_clients: start_matches_thread()
+						# else: socketio.on_event('connected', start_matches_thread, namespace='/create-playlist') #specific connected event for /create-playlist
+						# # socketio.emit('finding_matches', {}, callback=start_matches_thread, broadcast=True)
+
+			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, namespace='/create-playlist', callback=get_matches, broadcast=True)
 			
 			# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 
@@ -313,9 +351,8 @@ class BookshelfThread(Thread):
 			# for song in not_matches:
 
 			thread_stop_event.set()
-	def run(self): # app
+	def run(self):
 		self.update_bookshelf()
-		# self.update_bookshelf(app)
 
 
 class MatchesThread(Thread):
@@ -325,7 +362,7 @@ class MatchesThread(Thread):
 	def update_bookshelf_with_matches(self):
 		print('updating bookshelf (again), this time to contain only matches') #debug
 
-		socketio.emit('finding_matches', broadcast=True)
+		socketio.emit('finding_matches', namespace='/create-playlist', broadcast=True)
 
 		theme_songs = []
 		subSongs = []
@@ -345,7 +382,7 @@ class MatchesThread(Thread):
 					song_count -= 1
 					print('removing:', song['name'], song_count) #debug
 					el_id = song['name'].replace(' ', '-')
-					socketio.emit('remove_album', {'id': el_id, 'name': song['name'], 'song_count': song_count}, broadcast=True)
+					socketio.emit('remove_album', {'id': el_id, 'name': song['name'], 'song_count': song_count}, namespace='/create-playlist', broadcast=True)
 					# socketio.sleep(2000)
 					socketio.sleep(2)
 
@@ -353,19 +390,19 @@ class MatchesThread(Thread):
 
 			themes.generatePlaylist(spotify, theme_songs, input_info['saveAs'], description)
 
-			socketio.emit('done', {'song_count': song_count}, broadcast=True)
+			socketio.emit('done', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
 			thread_stop_event.set()
 	def run(self):
 		self.update_bookshelf_with_matches()
 
 
-@socketio.on('bookshelf')
-def bookshelf():
+@socketio.on('bookshelf', namespace='/create-playlist')
+def bookshelf_start():
 	# @copy_current_request_context
 	# def start_bookshelf_thread():
 	global bookshelf_thread
 
-	print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread) #remove #debug
+	print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread, 'namespace is:', request.namespace) #remove #debug
 
 	if bookshelf_thread is None and spotify is not None:
 		with app.app_context():
@@ -417,7 +454,9 @@ def load_nlp():
 	while True:
 		if nlp is not None: break
 		socketio.sleep(1)
-		nlp = gensim_api.load("glove-wiki-gigaword-300")
+		nlp = Magnitude('http://magnitude.plasticity.ai/glove/medium/glove.6B.300d.magnitude', stream=True, eager=True)
+		# nlp = Magnitude('glove/heavy/glove.6B.300d', stream=True) #glove.6B.300d.magnitude # /GoogleNews-vectors-negative300
+		# nlp = gensim_api.load("glove-wiki-gigaword-300")
 	
 	print('done loading nlp.') #debug
 	global status
@@ -430,6 +469,14 @@ def load_nlp():
 
 @socketio.on('request_nlp')
 def request_nlp():
+	print('requested nlp') #socketio.stop()
+
+	global sim_words
+	sim_words = []
+
+	# client1 = socketio.test_client(app=app)
+
+	# print(client1.is_connected('/create-playlist'))
 	global nlpThread
 
 	if nlpThread is None:
@@ -452,6 +499,8 @@ def sign_in():
 	songs_thread_stop_event.clear() #unset it
 
 	global status
+
+	global sim_words
 
 	sim_words = []
 
@@ -507,7 +556,8 @@ def sign_in():
 
 			if input_info['method'] == 'playlist': input_info['playlistName'] = request.form.get('playlistName')
 
-			sim_words = get_similar_words(nlp, [input_info['theme']], top=6)
+			# sim_words = get_similar_words(nlp, [input_info['theme']], top=6)
+			sim_words = get_similar_words(nlp, input_info['theme'], top=6)
 			
 			def_display = 'block'
 
