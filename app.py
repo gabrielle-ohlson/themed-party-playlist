@@ -36,7 +36,7 @@ if async_mode == 'gevent':
 # 	eventlet.monkey_patch()
 
 
-from flask import Flask, session, request, redirect, render_template, url_for
+from flask import Flask, session, request, redirect, render_template, url_for, current_app #, copy_current_request_context
 from flask_session import Session
 
 from flask_socketio import SocketIO
@@ -45,7 +45,6 @@ from threading import Thread, Event
 import uuid
 import os
 import re
-from numpy import broadcast
 import requests
 import time
 import sys
@@ -61,19 +60,19 @@ import topic
 from sim import get_similar_words
 
 # import base64
-import csv #*
+import csv
 
 maxInt = sys.maxsize
 
 while True:
 	# decrease the maxInt value by factor 10 
 	# as long as the OverflowError occurs.
-
 	try:
 		csv.field_size_limit(maxInt)
 		break
 	except OverflowError:
 		maxInt = int(maxInt/10)
+
 
 import gensim.downloader as gensim_api
 nlp = None
@@ -103,9 +102,6 @@ app.config['SPOTIPY_CLIENT_ID']=environ.get('SPOTIPY_CLIENT_ID')
 app.config['SPOTIPY_CLIENT_SECRET']=environ.get('SPOTIPY_CLIENT_SECRET')
 
 app.config['GITHUB_TOKEN']=environ.get('GITHUB_TOKEN')
-
-
-# app.config['SPOTIPY_REDIRECT_URI']=environ.get('SPOTIPY_REDIRECT_URI')
 
 app.config['SPOTIPY_REDIRECT_URI']= 'http://127.0.0.1:5000/'
 
@@ -140,17 +136,6 @@ def get_file(filename):
 		return False
 
 	return file_content
-
-# async_mode = 'threading' #None
-# socketio = SocketIO(app, async_mode='threading')
-# socketio = SocketIO(app, async_mode=async_mode)
-# socketio.init_app(app, cors_allowed_origins="*")
-
-# socketio.set('transports', ['websocket'])
-
-# Set this variable to "threading", "eventlet" or "gevent" to test the
-# different async modes, or leave it set to None for the application to choose
-# the best option based on available packages.
 
 
 # socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
@@ -197,7 +182,7 @@ input_info = {
 	'trainTime': None
 }
 
-userPlaylists = None
+userPlaylists = {}
 
 topic_dictionary = {}
 terms = []
@@ -216,27 +201,32 @@ def reachedLimit():
 	'''
 	if input_info['stopNum'] is None or abs(input_info['stopNum']-info[input_info['stopCondition']]) >= 60000 or info[input_info['stopCondition']] < input_info['stopNum']: return False
 	else: return True #break if within 1 minute of stopNum or exceeded stopNum
-	# if abs(stopNum-info[stopCondition]) < 60000 or info[stopCondition] > stopNum: return False #break if within 1 minute of stopNum or exceeded stopNum
-	# else: return True
 
 
 @socketio.on('connect')
 def register_client():
 	if request.sid not in connected_clients: connected_clients.append(request.sid)
 	print(f'connected: {request.sid}. (total connections: {len(connected_clients)})')
-	# global connected_clients
+
 
 @socketio.on('disconnect')
 def unregister_client():
 	print('disconnected:', request.sid)
 	if request.sid in connected_clients: connected_clients.remove(request.sid)
-	# connected_clients.append(request.sid)
+
+
+# @socketio.on('get-user-playlists')
+# def return_user_playlists():
+# 	userPlaylists = spotify.current_user_playlists(limit=50)
+
+# 	socketio.emit('return-user-playlists', {'playlists': userPlaylists}, broadcast=True)
 
 
 class BookshelfThread(Thread):
 	def __init__(self):
 		self.delay = 1
 		super(BookshelfThread, self).__init__()
+	# def update_bookshelf(self, app):
 	def update_bookshelf(self):
 		print('updating bookshelf') #debug
 
@@ -264,7 +254,6 @@ class BookshelfThread(Thread):
 					socketio.emit('skip_song', {'song_count': song_count}, broadcast=True)
 			
 			def get_matches():
-				print('get_matches func!') #remove #debug
 				global matches_thread
 
 				if matches_thread is None:
@@ -284,24 +273,35 @@ class BookshelfThread(Thread):
 					def start_matches_thread():
 						print('start_matches_thread....') #remove #debug
 						matches_thread = MatchesThread()
-						matches_thread.start()
-					
+						matches_thread.start() #current_app._get_current_object()
+						
 					# def status_update():
 
 					# 	print('disconnect :(')
 					# 	print('connected_clients:', connected_clients, request.sid, request.sid in connected_clients)
+					print('app:', app)
 
-					print('connected_clients:', connected_clients) #remove #debug
+					# with app.request_context(): #test_request_context
+					# with app.app_context()
+					with app.test_request_context():
+					# with app.test_client() as client:
+						# print('current_app:', current_app._get_current_object())
+						print('request:', request.args)
 
-					# socketio.on_event('connected', start_matches_thread)
-					# socketio.on_event('disconnect', status_update)
+						print(len(request.view_args))
+						# client.get('/')
 
-					# socketio.on_event('ready', start_matches_thread)
+						# print('connected_clients:', connected_clients, request.sid in connected_clients) #remove #debug
 
-					# print('!!!', request.sid in connected_clients) #remove #debug
-					if request.sid in connected_clients: start_matches_thread()
-					else: socketio.on_event('connected', start_matches_thread) #specific connected event for /create-playlist
-					# socketio.emit('finding_matches', {}, callback=start_matches_thread, broadcast=True)
+						# socketio.on_event('connected', start_matches_thread)
+						# socketio.on_event('disconnect', status_update)
+
+						# socketio.on_event('ready', start_matches_thread)
+
+						# print('!!!', request.sid in connected_clients) #remove #debug
+						if len(request.view_args) and request.sid in connected_clients: start_matches_thread()
+						else: socketio.on_event('connected', start_matches_thread) #specific connected event for /create-playlist
+						# socketio.emit('finding_matches', {}, callback=start_matches_thread, broadcast=True)
 
 			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, callback=get_matches, broadcast=True)
 			
@@ -312,8 +312,9 @@ class BookshelfThread(Thread):
 			# for song in not_matches:
 
 			thread_stop_event.set()
-	def run(self):
+	def run(self): # app
 		self.update_bookshelf()
+		# self.update_bookshelf(app)
 
 
 class MatchesThread(Thread):
@@ -360,12 +361,18 @@ class MatchesThread(Thread):
 @socketio.on('bookshelf')
 def bookshelf():
 	print('restarting bookshelf...') #remove #debug
+
+	# @copy_current_request_context
+	# def start_bookshelf_thread():
 	global bookshelf_thread
 
 	if bookshelf_thread is None and spotify is not None:
-		print('starting BookshelfThread...') #debug
-		bookshelf_thread = BookshelfThread()
-		bookshelf_thread.start()
+		with app.app_context():
+			print('starting BookshelfThread...') #debug
+			bookshelf_thread = BookshelfThread()
+			bookshelf_thread.start()
+	
+	# start_bookshelf_thread()
 
 
 # @socketio.on('find_matches')
@@ -472,6 +479,8 @@ def sign_in():
 	# Step 4. Signed in, display data
 	global spotify
 	spotify = spotipy.Spotify(auth_manager=auth_manager)
+
+	userPlaylists = spotify.current_user_playlists(limit=50)['items']
 	
 	if request.method == 'POST':
 		if 'theme' in request.form: #TODO: and 'stopCondition' and request.form
@@ -592,7 +601,7 @@ def sign_in():
 
 	current_time = time.localtime()
 
-	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], current_time=f'{current_time.tm_hour}:{current_time.tm_min}', async_mode=socketio.async_mode)
+	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], playlists=userPlaylists, current_time=f'{current_time.tm_hour}:{current_time.tm_min}', async_mode=socketio.async_mode)
 
 
 

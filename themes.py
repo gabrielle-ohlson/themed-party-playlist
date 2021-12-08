@@ -77,7 +77,7 @@ def get_songs(sp, input_info):
 				'duration': track['duration_ms'],
 				'release_date': track['album']['release_date'],
 				'id': track['id'],
-				'album_art': item['album']['images'][0]['url']
+				'album_art': track['album']['images'][0]['url']
 			}
 
 			songs.append(song)

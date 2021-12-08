@@ -72,7 +72,7 @@
 <body>
 <div>
 	<h1>Themed Party Playlist: Spotify AI</h1><br>
-	<p id="status">{{ status }}<span id="wait"></span></p>
+	<p id="status" class="loading">{{ status }}<span id="wait"></span></p>
 </div>
 <form action="{{ url_for('sign_in')}}" method="post">
 	<label for="theme">Party theme:</label>
@@ -86,22 +86,27 @@
 		<option value="genius"><button>search lyrics on Genius</button></option>
 	</select>
 	<span id="playlistNameContainer" style="display: none">
-		<label id="playlistNameLabel" for="playlistName">Name of an existing playlist from your spotify account:</label>
-		<input type="text" id="playlistName" name="playlistName" placeholder="input playlist name"/> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
+		<label id="playlistNameLabel" for="playlistName">Name of an existing playlist from your spotify account:</label> <!-- TODO: add button for getting emojis -->
+		<input type="text" id="playlistName" name="playlistName" value="{{ playlists[0]['name'] }}" /> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
 		<button id="browsePlaylists">browse playlists</button>
 		<span id="browsePlaylistsContainer" style="display: none;">
+			<select id="playlistSelect" name="playlistSelect" style="display: block">
+				{% for p in playlists %}
+				<option value="{{p['name']}}"><button>{{p['name']}}</button></option>
+				{% endfor %}
+			</select>
 		</span>
 	</span>
 	<br>
 	<label for="stopCondition">Condition for stopping the program:</label>
 	<select id="stopCondition" name="stopCondition">
-		<option value="None"><button>none</button></option>
-		<option value="duration"><button>duration</button></option>
 		<option value="song count"><button>song count</button></option>
+		<option value="duration"><button>duration</button></option>
+		<option value="None"><button>none</button></option>
 	</select>
-	<span id="stopNumContainer" style="display:none">
-		<label id="stopNumLabel" for="stopNum">Number associated with your chosen condition:</label>
-		<input type="number" min="0" oninput="validity.valid||(value='');" id="stopNum" name="stopNum" placeholder="input stop condition number" size=6/> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
+	<span id="stopNumContainer" style="display: block;">
+		<label id="stopNumLabel" for="stopNum">Max number of songs:</label>
+		<input type="number" min="0" oninput="validity.valid||(value='');" id="stopNum" name="stopNum" step=1 size=6 value=20 />
 	</span>
 	<br>
 	<label for="saveAs">Save as:</label>
@@ -130,18 +135,38 @@
 <script>
 	var socket = io.connect();
 
-	console.log(socket.connected);
+	console.log('connected:', socket.connected);
 
 	socket.on('connect', function() {
 		socket.emit('request_nlp');
-		console.log('check 2', socket.connected);
+		console.log('connected:', socket.connected);
 	});
 
 	let status = document.getElementById('status');
 
 	socket.on('new_status', function(data, cb) {
+		status.classList.remove('loading');
 		status.innerText = data.status;
 	});
+
+	// let playlists; //new //*
+	// socket.on('return-user-playlists', function(data, cb) {
+	// 	playlists = data.playlists;
+
+	// 	let playlistsHTML = '<select id="playlistSelect" name="playlistSelect">';
+
+	// 	for (let p of playlists['items']) {
+	// 		playlistsHTML += `<option value="${p['name']}"><button>${p['name']}</button></option>`;
+	// 	}
+
+	// 	playlistsHTML += '</select>';
+	// 	playlistsContainer.innerHTML = playlistsHTML;
+	// 	playlistsContainer.style.display = 'block';
+
+	// 	document.getElementById('playlistSelect').addEventListener('change', (ev) => {
+	// 		playlistName_input.value = ev.target.value;
+	// 	});
+	// });
 
 
 	let submitButtons = document.querySelectorAll('button[type="submit"]');
@@ -169,6 +194,7 @@
 	let playlistNameContainer = document.getElementById('playlistNameContainer');
 	let playlistName_input = document.getElementById('playlistName');
 	let playlistsContainer = document.getElementById('browsePlaylistsContainer')
+	let playlistSelect = document.getElementById('playlistSelect');
 
 	let stopCondition_input = document.getElementById('stopCondition');
 	let stopNumContainer = document.getElementById('stopNumContainer');
@@ -177,16 +203,29 @@
 
 	let saveAs_input = document.getElementById('saveAs');
 
+	playlistSelect.addEventListener('change', (ev) => {
+		playlistName_input.value = ev.target.value;
+	});
+
 	addEventListener("DOMContentLoaded", function() {
 		method_input.addEventListener('change', (ev) => {
 			if (ev.target.value === 'playlist') {
+				let playlistButton = document.getElementById('browsePlaylists');
+
+				playlistButton.style.display = 'inline'; //TODO: check
+
 				playlistNameContainer.style.display = 'block';
 				playlistName_input.required = true;
-
-				let playlistButton = document.getElementById('browsePlaylists');
+				
 				playlistButton.addEventListener('click', (ev) => {
 					ev.preventDefault();
+					
+					playlistButton.style.display = 'none';
 
+					playlistsContainer.style.display = 'block';
+
+					// if (playlists === undefined) socket.emit('get-user-playlists'); //new //*
+					/*
 					let request = new XMLHttpRequest();
 					request.onload = function() {
 						let playlists = JSON.parse(request.response);
@@ -207,11 +246,12 @@
 
 					request.open('GET', '/user-playlists', true);
 					request.send();
-
+					*/
 				});
 			} else {
 				playlistNameContainer.style.display = 'none';
 				playlistName_input.required = false;
+				playlistsContainer.style.display = 'none';
 			}
 		});
 	});

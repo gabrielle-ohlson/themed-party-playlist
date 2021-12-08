@@ -42,7 +42,6 @@ def top_lyrics(songs, terms, stopNum=None, stopCondition=None, relevant_lyrics=[
 		relevant_song_lyrics = [song['lyrics'] for song in relevant_lyrics]
 		lyrics.extend(relevant_song_lyrics)
 
-	print('stopNum:', stopNum)
 	if stopNum is not None: print(stopNum/60000, 'mins')
 	# while True:
 	# 	try:
@@ -103,7 +102,8 @@ def top_lyrics(songs, terms, stopNum=None, stopCondition=None, relevant_lyrics=[
 	num_docs = len(model.documents)
 	if stopNum is None: stopNum = num_docs #TODO: have option of passing length (so if stopNum[0] (type) == 'duration', multiple by 5 [so extra], then, go backwards )
 
-	if stopCondition == 'duration': num_docs = min(num_docs, stopNum//120000) # 120000 = 2 minutes (average song length == 3.5 mins aka 210000 ms, so get a few extra songs incase they are short)
+	if stopCondition == 'duration':
+		num_docs = min(num_docs, stopNum//120000) # 120000 = 2 minutes (average song length == 3.5 mins aka 210000 ms, so get a few extra songs incase they are short)
 	# num_docs = stopNum//210000
 	# stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']
 
