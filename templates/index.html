@@ -87,8 +87,8 @@
 	</select>
 	<span id="playlistNameContainer" style="display: none">
 		<label id="playlistNameLabel" for="playlistName">Name of an existing playlist from your spotify account:</label> <!-- TODO: add button for getting emojis -->
-		<input type="text" id="playlistName" name="playlistName" value="{{ playlists[0]['name'] }}" /> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
-		<button id="browsePlaylists">browse playlists</button>
+		<input type="text" id="playlistName" name="playlistName" placeholder="input playlist name" /> <!-- TODO: make a 'min' or 'songs' or this disappear depending on chosen stop condition, & make display 'block' if select stop condition -->
+		<button id="browsePlaylists" onclick="document.getElementById('playlistName').value = '{{ playlists[0]['name'] }}';">browse playlists</button>
 		<span id="browsePlaylistsContainer" style="display: none;">
 			<select id="playlistSelect" name="playlistSelect" style="display: block">
 				{% for p in playlists %}

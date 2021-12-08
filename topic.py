@@ -90,14 +90,14 @@ def top_lyrics(songs, terms, stopNum=None, stopCondition=None, relevant_lyrics=[
 
 	training_ids = [doc_id for doc_id in model.document_ids if doc_id >= lyrics_ct]
 
-	print(model.document_ids) #remove #debug
-	print(training_ids) #remove #debug
+	# print(model.document_ids) #remove #debug
+	# print(training_ids) #remove #debug
 
 	if len(training_ids): model.delete_documents(training_ids)
 
 	print(len(model.documents)) #remove #debug
 
-	print(model.document_ids) #remove #debug
+	# print(model.document_ids) #remove #debug
 
 	num_docs = len(model.documents)
 	if stopNum is None: stopNum = num_docs #TODO: have option of passing length (so if stopNum[0] (type) == 'duration', multiple by 5 [so extra], then, go backwards )

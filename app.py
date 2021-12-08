@@ -260,6 +260,7 @@ class BookshelfThread(Thread):
 					thread_stop_event.clear()
 
 					global matches
+					print('songs_with_lyrics:', songs_with_lyrics)
 					matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 					# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 
@@ -279,7 +280,7 @@ class BookshelfThread(Thread):
 
 					# 	print('disconnect :(')
 					# 	print('connected_clients:', connected_clients, request.sid, request.sid in connected_clients)
-					print('app:', app)
+					# print('app:', app)
 
 					# with app.request_context(): #test_request_context
 					# with app.app_context()
@@ -360,11 +361,11 @@ class MatchesThread(Thread):
 
 @socketio.on('bookshelf')
 def bookshelf():
-	print('restarting bookshelf...') #remove #debug
-
 	# @copy_current_request_context
 	# def start_bookshelf_thread():
 	global bookshelf_thread
+
+	print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread) #remove #debug
 
 	if bookshelf_thread is None and spotify is not None:
 		with app.app_context():
