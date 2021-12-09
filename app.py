@@ -57,9 +57,6 @@ from github import Github #TODO: install
 from pymagnitude import *
 import boto3
 
-import s3Client
-# from flask_s3 import FlaskS3
-
 import themes
 import topic
 from sim import get_similar_words
@@ -504,24 +501,11 @@ def load_nlp():
 	while True:
 		if nlp is not None: break
 		socketio.sleep(1)
-		# bucket.download_file('glove.6B.300d.magnitude', 'glove_nlp')
-
-		# s3Client.download(s3, 'themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
-		# s3 = boto3.client('s3', region_name='us-west-1')
-
 
 		s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
 
-		# download_s3_file('glove_nlp', 'glove.6B.300d.magnitude') # glove.6B.300d.magnitude
-
 		nlp = Magnitude('glove.6B.300d.magnitude')
-		# print('NLP:', nlp)
-		# with open('/static/glove.6B.300d.magnitude') as f:
-		# 	print('!f', f)
-		# glove_nlp = open('glove_nlp', 'rb')
-		# nlp = Magnitude('http://magnitude.plasticity.ai/glove/medium/glove.6B.300d.magnitude', stream=True, eager=True)
-		# nlp = Magnitude('glove/heavy/glove.6B.300d', stream=True) #glove.6B.300d.magnitude # /GoogleNews-vectors-negative300
-		# nlp = gensim_api.load("glove-wiki-gigaword-300")
+
 	
 	print('done loading nlp.') #debug
 	global status
@@ -532,33 +516,16 @@ def load_nlp():
 # @socketio.on('connect')
 
 
-@socketio.on('request_nlp')
+@socketio.on('request_nlp') #TODO: change this to 'load-index' or something
 def request_nlp():
 	print('requested nlp') #socketio.stop()
 
 	global sim_words
 	sim_words = []
 
-	# global nlpThread
-
-	# if nlpThread is not None:
-	# 	nlpThread.join()
-
-	# client1 = socketio.test_client(app=app)
-
-	# print(client1.is_connected('/create-playlist'))
-	# global nlpThread
-
-	# if nlpThread is None:
-	# 	print('none again')
-	# 	nlpThread = Thread(target=load_nlp)
-	# 	nlpThread.start()
-
 
 @app.route('/', methods=['GET', 'POST'])
 def sign_in():
-	# print(request.url, '\n') #remove #debug
-	# print(request.headers) #remove #debug
 	print('rendering index page.') #remove #debug
 	# global sim_words
 	# sim_words = []
@@ -569,7 +536,6 @@ def sign_in():
 		nlpThread = Thread(target=load_nlp)
 		nlpThread.start()
 
-	# if nlpThread is not None: print(nlpThread.is_alive())
 	global bookshelf_thread
 	global matches_thread
 
