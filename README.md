@@ -30,6 +30,8 @@ torch==1.10.0+cpu
 
 `heroku run bash -a <appname>` and then `du -ha --max-depth 1 /app | sort -hr` to determine what files/folders are taking up space in your slug
 
+`heroku repo:purge_cache`
+
 ## TODO:
 - [ ] make sign in page look nice
 - [x] add customization options if certain form elements are chosen
