@@ -48,13 +48,17 @@ import re
 import requests
 import time
 import sys
-from io import StringIO
+from io import StringIO, BytesIO
 
 import lyricsgenius
 import spotipy
 
 from github import Github #TODO: install
 from pymagnitude import *
+import boto3
+
+import s3Client
+# from flask_s3 import FlaskS3
 
 import themes
 import topic
@@ -106,6 +110,12 @@ app.config['GITHUB_TOKEN']=environ.get('GITHUB_TOKEN')
 
 app.config['SPOTIPY_REDIRECT_URI']= 'http://127.0.0.1:5000/'
 
+app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
+app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
+app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
+
+s3 = boto3.client('s3', region_name='us-west-1')
+
 if (os.environ.get('PORT')):
 	port = os.environ.get('PORT')
 else:
@@ -116,6 +126,8 @@ genius_token = os.getenv('GENIUS_TOKEN')
 # genius = lyricsgenius.Genius(genius_token)  # access token
 # genius = lyricsgenius.Genius(genius_token, timeout=15, sleep_time=1)  # access token
 genius = lyricsgenius.Genius(genius_token, timeout=15, retries=3, remove_section_headers=True)  # access token
+
+# s3 = FlaskS3(app)
 
 github_token = os.getenv('GITHUB_TOKEN')
 
@@ -136,6 +148,37 @@ def get_file(filename):
 		return False
 
 	return file_content
+
+
+def download_s3_file(file_name, save_as):
+	
+
+	# with open('FILE_NAME', 'wb') as f:
+	# 	s3.download_fileobj('themed-party-playlist', file_name, f)
+
+	s3.download_file('themed-party-playlist', file_name, save_as)
+
+	# with open('FILE_NAME', 'wb') as f:
+  #   s3.download_fileobj('BUCKET_NAME', 'OBJECT_NAME', f)
+
+	# fileobj = s3.get_object(
+	# 	Bucket='themed-party-playlist',
+	# 	Key=file_name
+	# 	) 
+	
+	# filedata = fileobj['Body'].read()
+	# contents = filedata.decode('utf-8') 
+	
+	# print(f)
+	# nlp_file = BytesIO(f)
+
+	# print(nlp_file)
+
+	# # s3 = boto3.resource('s3')
+	# # output = f'downloads{file_name}'
+	# # s3.Bucket('themed-party-playlist').download_file(file_name, output)
+
+	# return f
 
 
 # socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
@@ -404,11 +447,11 @@ def bookshelf_start():
 
 	print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread, 'namespace is:', request.namespace) #remove #debug
 
-	if bookshelf_thread is None and spotify is not None:
-		with app.app_context():
-			print('starting BookshelfThread...') #debug
-			bookshelf_thread = BookshelfThread()
-			bookshelf_thread.start()
+	if bookshelf_thread is None and spotify is not None and nlp is not None:
+		# with app.app_context():
+		print('starting BookshelfThread...') #debug
+		bookshelf_thread = BookshelfThread()
+		bookshelf_thread.start()
 	
 	# start_bookshelf_thread()
 
@@ -448,13 +491,35 @@ status = 'Loading NLP model'
 nlpThread = None
 songsThread = None
 
+# connect_s
+S3_BUCKET = os.environ.get('S3_BUCKET')
+# s3 = boto3.client('s3')
+
+# s3 = boto3.resource('s3')
+# bucket = s3.Bucket(S3_BUCKET)
+
 def load_nlp():
 	print('loading nlp...') #debug
 	global nlp
 	while True:
 		if nlp is not None: break
 		socketio.sleep(1)
-		nlp = Magnitude('http://magnitude.plasticity.ai/glove/medium/glove.6B.300d.magnitude', stream=True, eager=True)
+		# bucket.download_file('glove.6B.300d.magnitude', 'glove_nlp')
+
+		# s3Client.download(s3, 'themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
+		# s3 = boto3.client('s3', region_name='us-west-1')
+
+
+		s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
+
+		# download_s3_file('glove_nlp', 'glove.6B.300d.magnitude') # glove.6B.300d.magnitude
+
+		nlp = Magnitude('glove.6B.300d.magnitude')
+		# print('NLP:', nlp)
+		# with open('/static/glove.6B.300d.magnitude') as f:
+		# 	print('!f', f)
+		# glove_nlp = open('glove_nlp', 'rb')
+		# nlp = Magnitude('http://magnitude.plasticity.ai/glove/medium/glove.6B.300d.magnitude', stream=True, eager=True)
 		# nlp = Magnitude('glove/heavy/glove.6B.300d', stream=True) #glove.6B.300d.magnitude # /GoogleNews-vectors-negative300
 		# nlp = gensim_api.load("glove-wiki-gigaword-300")
 	
@@ -474,14 +539,20 @@ def request_nlp():
 	global sim_words
 	sim_words = []
 
+	# global nlpThread
+
+	# if nlpThread is not None:
+	# 	nlpThread.join()
+
 	# client1 = socketio.test_client(app=app)
 
 	# print(client1.is_connected('/create-playlist'))
-	global nlpThread
+	# global nlpThread
 
-	if nlpThread is None:
-		nlpThread = Thread(target=load_nlp)
-		nlpThread.start()
+	# if nlpThread is None:
+	# 	print('none again')
+	# 	nlpThread = Thread(target=load_nlp)
+	# 	nlpThread.start()
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -489,6 +560,16 @@ def sign_in():
 	# print(request.url, '\n') #remove #debug
 	# print(request.headers) #remove #debug
 	print('rendering index page.') #remove #debug
+	# global sim_words
+	# sim_words = []
+
+	global nlpThread
+
+	if nlpThread is None:
+		nlpThread = Thread(target=load_nlp)
+		nlpThread.start()
+
+	# if nlpThread is not None: print(nlpThread.is_alive())
 	global bookshelf_thread
 	global matches_thread
 
@@ -533,6 +614,8 @@ def sign_in():
 	userPlaylists = spotify.current_user_playlists(limit=50)['items']
 	
 	if request.method == 'POST':
+		if nlpThread is not None and nlpThread.is_alive(): nlpThread.join() #*
+
 		if 'theme' in request.form: #TODO: and 'stopCondition' and request.form
 			status = 'Training model'
 
@@ -654,7 +737,7 @@ def sign_in():
 
 	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], playlists=userPlaylists, current_time=f'{current_time.tm_hour}:{current_time.tm_min}', async_mode=socketio.async_mode)
 
-
+# Successfully installed Boto3-1.20.22 botocore-1.23.22 flask-s3-0.3.3 jmespath-0.10.0 s3transfer-0.5.0
 
 # Run application
 if __name__ == "__main__":
