@@ -31,3 +31,9 @@ toni.ini
 s3-save.py
 
 glove.6B.300d.magnitude*
+saved_model.pb*
+variables/
+
+README-debug.md
+
+aws/

@@ -29,14 +29,20 @@ def top_lyrics(songs, terms, stopNum=None, stopCondition=None, relevant_lyrics=[
 	# tf.config.threading.set_intra_op_parallelism_threads(2)
 	# tf.config.threading.set_inter_op_parallelism_threads(2)
 	# tf.config.gpu_options
-	print('relevant_lyrics:', len(relevant_lyrics))
-	print('songs:', len(songs))
+
 	song_names = [song['name'] for song in songs]
 	lyrics = [song['lyrics'] for song in songs]
 
 	lyrics_ct = len(lyrics)
 	
+	leftover_space = max(0, 250-lyrics_ct)
+
+	relevant_lyrics = relevant_lyrics[:leftover_space]
+
 	relevant_lyrics_ct = len(relevant_lyrics)
+
+	print('relevant_lyrics_ct:', relevant_lyrics_ct) #debug
+	print('lyrics_ct:', lyrics_ct) #debug
 
 	if relevant_lyrics_ct:
 		relevant_song_lyrics = [song['lyrics'] for song in relevant_lyrics]
@@ -64,6 +70,7 @@ def top_lyrics(songs, terms, stopNum=None, stopCondition=None, relevant_lyrics=[
 		try:
 			# model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder', workers=5)
 			model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder', use_embedding_model_tokenizer=True)
+			# model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder', embedding_model_path=root_dir, use_embedding_model_tokenizer=True)
 			print(f'successful! (after {retries} retries)')
 			break
 		# catch
@@ -156,7 +163,9 @@ def similarity(lyrics, terms, thresh=0.8):
 	terms = [term.lower() for term in terms]
 
 	# model = Top2Vec(lyrics, min_count=1, embedding_model='distiluse-base-multilingual-cased') #TODO: remove pip installations in requirements that are associated with this
-	model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder') #TODO: remove pip installations in requirements that are associated with this
+	# model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder') #TODO: remove pip installations in requirements that are associated with this
+	# model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder', embedding_model_path='saved_model.pb') #TODO: remove pip installations in requirements that are associated with this
+	model = Top2Vec(lyrics, min_count=1, embedding_model='universal-sentence-encoder', embedding_model_path='saved_model.pb') #TODO: remove pip installations in requirements that are associated with this
 
 
 	model.get_num_topics()

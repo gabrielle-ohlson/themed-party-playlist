@@ -242,24 +242,24 @@
 		socket.emit('bookshelf');
 	});
 
-	window.onbeforeunload = function (ev) {
-		ev.preventDefault();
-		console.log('leaving');
-		socket.close();
-		// socket.emit('leave_page', {'page': '/create-playlist'});
-		// socket.disconnect();
-		alert('leaving page...'); //remove //debug
-		return ev.returnValue = "Are you sure you want to exit?";
-	}
-
-	// if (window.confirm("Do you really want to leave?")) {
-	// 	window.open("exit.html", "Thanks for Visiting!");
+	// window.onbeforeunload = function (ev) {
+	// 	ev.preventDefault();
+	// 	console.log('leaving');
+	// 	socket.close();
+	// 	// socket.emit('leave_page', {'page': '/create-playlist'});
+	// 	// socket.disconnect();
+	// 	alert('leaving page...'); //remove //debug
+	// 	return ev.returnValue = "Are you sure you want to exit?";
 	// }
 
+	// // if (window.confirm("Do you really want to leave?")) {
+	// // 	window.open("exit.html", "Thanks for Visiting!");
+	// // }
 
-	window.onpopstate = function(ev) {
-		alert('popstate');
-	}
+
+	// window.onpopstate = function(ev) {
+	// 	alert('popstate');
+	// }
 
 	let status = document.getElementById('status');
 	let wait = document.getElementById('wait');

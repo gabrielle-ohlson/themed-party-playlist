@@ -48,7 +48,7 @@ import re
 import requests
 import time
 import sys
-from io import StringIO, BytesIO
+from io import StringIO
 
 import lyricsgenius
 import spotipy
@@ -92,6 +92,10 @@ from dotenv import load_dotenv
 basedir = path.abspath(path.dirname(__file__))
 load_dotenv(path.join(basedir, '.env'))
 
+with app.app_context():
+	root_dir = current_app.root_path
+	print('root_dir:', root_dir)
+
 # TESTING = True
 # DEBUG = True
 app.config['FLASK_ENV'] = 'development'
@@ -111,7 +115,13 @@ app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
 app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
 app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
 
+AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID')
+
+AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY')
+
 s3 = boto3.client('s3', region_name='us-west-1')
+
+# s3_lambda = boto3.client('lambda', region_name='us-west-1', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
 
 if (os.environ.get('PORT')):
 	port = os.environ.get('PORT')
@@ -502,7 +512,20 @@ def load_nlp():
 		if nlp is not None: break
 		socketio.sleep(1)
 
+		# variables_dir = os.path.join(root_dir, 'variables')
+
+		# if not os.path.isdir(variables_dir): os.mkdir(variables_dir)
+		# shutil.rmtree(ignore_errors=True)
+
+		# os.mkdir(variables_dir)
+
 		s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
+
+		# s3.download_file('themed-party-playlist', 'saved_model.pb', 'saved_model.pb') #new #check
+
+		# s3.download_file('themed-party-playlist', 'variables/variables.data-00000-of-00001', 'variables/variables.data-00000-of-00001')
+
+		# s3.download_file('themed-party-playlist', 'variables/variables.index', 'variables/variables.index')
 
 		nlp = Magnitude('glove.6B.300d.magnitude')
 
@@ -638,7 +661,7 @@ def sign_in():
 
 						page = 1
 						while True:
-							if time.time() > (timeout_start + input_info['trainTime']) or len(relevant_lyrics) >= 1000: break #new limit (1000)
+							if time.time() > (timeout_start + input_info['trainTime']) or len(relevant_lyrics) >= 250: break #new limit (1000)
 
 							print('page:', page, len(relevant_lyrics)) #remove #debug
 							term_lyrics = genius.search_lyrics(theme, per_page=20, page=page)
