@@ -64,7 +64,7 @@ import boto3
 import themes
 import topic
 from sim import get_similar_words
-from matchesWorker import start_matches_thread
+# from matchesWorker import start_matches_thread
 
 # import base64
 import csv
@@ -303,15 +303,13 @@ class BookshelfThread(Thread):
 					# topic_job = q.enqueue(topic.top_lyrics, kwargs={'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}, job_id='topic_job_id') #, on_success=nlp_job_succeeded, on_failure=nlp_job_failed)
 
 					# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
-
-					print('got matches.') #remove #debug
 					
-					# def start_matches_thread():
-					# 	print('start_matches_thread....') #remove #debug
-					# 	matches_thread = MatchesThread()
-					# 	matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
+					def start_matches_thread():
+						print('start_matches_thread....') #remove #debug
+						matches_thread = MatchesThread()
+						matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
 
-					matches_thread = MatchesThread() #new #*
+					# matches_thread = MatchesThread() #new #*
 
 					q = Queue(connection=conn)
 
@@ -628,6 +626,24 @@ def sign_in():
 
 # Run application
 if __name__ == "__main__":
+	# print('running locally with python.')
+	# import redis
+
+	# global conn
+
+	# listen = ['high', 'default', 'low']
+
+	# redis_url = os.getenv('REDISTOGO_URL', 'redis://localhost:5000') #6379
+
+	# conn = redis.from_url(redis_url)
+
+	# with Connection(conn):
+	# 	worker = Worker(map(Queue, listen))
+	# 	worker.work()
+
+	# r = redis.Redis()
+	# q = Queue(connection=r)
+
 	# socketio.run(app)
 	socketio.run(app, port=port)
 	# socketio.run(app, port=int(os.environ.get('PORT', 5000)), debug=True)
