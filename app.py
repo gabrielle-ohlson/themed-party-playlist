@@ -121,7 +121,7 @@ AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY')
 
 s3 = boto3.client('s3', region_name='us-west-1')
 
-# s3_lambda = boto3.client('lambda', region_name='us-west-1', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
+S3_BUCKET = os.environ.get('S3_BUCKET')
 
 if (os.environ.get('PORT')):
 	port = os.environ.get('PORT')
@@ -130,11 +130,7 @@ else:
 
 genius_token = os.getenv('GENIUS_TOKEN')
 
-# genius = lyricsgenius.Genius(genius_token)  # access token
-# genius = lyricsgenius.Genius(genius_token, timeout=15, sleep_time=1)  # access token
 genius = lyricsgenius.Genius(genius_token, timeout=15, retries=3, remove_section_headers=True)  # access token
-
-# s3 = FlaskS3(app)
 
 github_token = os.getenv('GITHUB_TOKEN')
 
@@ -142,7 +138,6 @@ github = Github(github_token)
 
 repo = github.get_user().get_repo('lyrics-storage')
 
-# query_url = f"https://api.github.com/repos/gabrielle-ohlson/lyrics-storage/contents/"
 query_url = f"https://raw.githubusercontent.com/gabrielle-ohlson/lyrics-storage/main/"
 
 def get_file(filename):
@@ -157,37 +152,6 @@ def get_file(filename):
 	return file_content
 
 
-def download_s3_file(file_name, save_as):
-	
-
-	# with open('FILE_NAME', 'wb') as f:
-	# 	s3.download_fileobj('themed-party-playlist', file_name, f)
-
-	s3.download_file('themed-party-playlist', file_name, save_as)
-
-	# with open('FILE_NAME', 'wb') as f:
-  #   s3.download_fileobj('BUCKET_NAME', 'OBJECT_NAME', f)
-
-	# fileobj = s3.get_object(
-	# 	Bucket='themed-party-playlist',
-	# 	Key=file_name
-	# 	) 
-	
-	# filedata = fileobj['Body'].read()
-	# contents = filedata.decode('utf-8') 
-	
-	# print(f)
-	# nlp_file = BytesIO(f)
-
-	# print(nlp_file)
-
-	# # s3 = boto3.resource('s3')
-	# # output = f'downloads{file_name}'
-	# # s3.Bucket('themed-party-playlist').download_file(file_name, output)
-
-	# return f
-
-
 # socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
 socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=[
 	'http://localhost:5000', 'https://localhost:5000',
@@ -199,7 +163,7 @@ socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=[
 	'https://127.0.0.1:5000', 'https://127.0.0.1:5000/create-playlist',
 	'http://0.0.0.0:5000', 'http://0.0.0.0:5000/create-playlist', 'http://127.0.0.1:5000/'])
 
-connected_clients = [] #new
+connected_clients = []
 
 #update_bookshelf Generator Thread
 bookshelf_thread = None
@@ -256,7 +220,6 @@ def reachedLimit():
 @socketio.on('connect')
 def register_client():
 	if request.namespace not in connected_clients: connected_clients.append(request.namespace)
-	# if request.sid not in connected_clients: connected_clients.append(request.sid)
 	print(f'connected: {request.sid}. Namespace: {request.namespace}. (total connections: {len(connected_clients)})')
 
 
@@ -276,21 +239,6 @@ def unregister_client():
 def unregister_client():
 	print('disconnected:', request.sid, request.namespace)
 	if request.namespace in connected_clients: connected_clients.remove(request.namespace)
-
-
-# @socketio.on('leave_page', namespace='/create-playlist')
-# def reset_app(data):
-# 	print(data['page']) #*
-# 	global bookshelf_thread
-# 	global matches_thread
-
-# 	bookshelf_thread = None #reset
-# 	matches_thread = None #reset
-
-# 	thread_stop_event.clear() #unset it
-# 	songs_thread_stop_event.clear() #unset it
-
-# 	# socketio.stop() #?
 
 
 def await_connection(ns, cb=None):
@@ -346,59 +294,17 @@ class BookshelfThread(Thread):
 					print('got matches.') #remove #debug
 					
 					def start_matches_thread():
-						# client = socketio.test_client(app=app) #client.stop()
-
-						# print('!', client.is_connected(namespace='/create-playlist'))
-
-						# print(client.is_connected('/create-playlist'))
-						# print(client.get_received('/create-playlist'))
-						# print('handlers:', client.handlers, 'namespace h:', client.namespace_handlers)
-						# socketio.handlers['/create-playlist'].pop('connected')
 						print('start_matches_thread....') #remove #debug
 						matches_thread = MatchesThread()
 						matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
-						
-					# def status_update():
 
-					# 	print('disconnect :(')
-					# 	print('connected_clients:', connected_clients, request.sid, request.sid in connected_clients)
-					# print('app:', app)
-
-					# with app.request_context(): #test_request_context
-					# with app.app_context()
 					with app.test_request_context():
-					# with app.test_client() as client:
-						# print('current_app:', current_app._get_current_object())
-						print('request:', request.args)
-
-						print(len(request.view_args))
-						# client.get('/')
-
-						# print('connected_clients:', connected_clients, request.sid in connected_clients) #remove #debug
-
-						# socketio.on_event('connected', start_matches_thread)
-						# socketio.on_event('disconnect', status_update)
-
-						# socketio.on_event('ready', start_matches_thread)
-
-						# print('!!!', request.sid in connected_clients) #remove #debug
-
-						# if nlpThread is None:
 						connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
-						# args=('/create-playlist'))
+
 						connect_create_playlist.start()
 
-						# if len(request.view_args) and request.sid in connected_clients: start_matches_thread()
-						# else: socketio.on_event('connected', start_matches_thread, namespace='/create-playlist') #specific connected event for /create-playlist
-						# # socketio.emit('finding_matches', {}, callback=start_matches_thread, broadcast=True)
 
 			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, namespace='/create-playlist', callback=get_matches, broadcast=True)
-			
-			# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
-
-			# not_matches = [song for song in songs in song not in matches]
-
-			# for song in not_matches:
 
 			thread_stop_event.set()
 	def run(self):
@@ -433,7 +339,7 @@ class MatchesThread(Thread):
 					print('removing:', song['name'], song_count) #debug
 					el_id = song['name'].replace(' ', '-')
 					socketio.emit('remove_album', {'id': el_id, 'name': song['name'], 'song_count': song_count}, namespace='/create-playlist', broadcast=True)
-					# socketio.sleep(2000)
+
 					socketio.sleep(2)
 
 			if len(subSongs): theme_songs.append(subSongs)
@@ -448,42 +354,14 @@ class MatchesThread(Thread):
 
 @socketio.on('bookshelf', namespace='/create-playlist')
 def bookshelf_start():
-	# @copy_current_request_context
-	# def start_bookshelf_thread():
 	global bookshelf_thread
 
 	print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread, 'namespace is:', request.namespace) #remove #debug
 
 	if bookshelf_thread is None and spotify is not None and nlp is not None:
-		# with app.app_context():
 		print('starting BookshelfThread...') #debug
 		bookshelf_thread = BookshelfThread()
 		bookshelf_thread.start()
-	
-	# start_bookshelf_thread()
-
-
-# @socketio.on('find_matches')
-# def get_matches():
-# 	global matches_thread
-
-# 	if matches_thread is None:
-# 		thread_stop_event.clear()
-
-# 		global matches
-# 		matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
-# 		# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=((input_info['stopNum']//210000) if input_info['stopCondition'] == 'duration' else input_info['stopNum']), relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
-
-# 		print('starting MatchesThread...')
-
-# 		def start_matches_thread():
-# 			matches_thread = MatchesThread()
-# 			matches_thread.start()
-
-# 		socketio.emit('finding_matches', broadcast=True, callback=start_matches_thread)
-		
-# 		# matches_thread = MatchesThread()
-# 		# matches_thread.start()
 
 
 @app.route('/create-playlist')
@@ -498,12 +376,6 @@ status = 'Loading NLP model'
 nlpThread = None
 songsThread = None
 
-# connect_s
-S3_BUCKET = os.environ.get('S3_BUCKET')
-# s3 = boto3.client('s3')
-
-# s3 = boto3.resource('s3')
-# bucket = s3.Bucket(S3_BUCKET)
 
 def load_nlp():
 	print('loading nlp...') #debug
@@ -512,20 +384,7 @@ def load_nlp():
 		if nlp is not None: break
 		socketio.sleep(1)
 
-		# variables_dir = os.path.join(root_dir, 'variables')
-
-		# if not os.path.isdir(variables_dir): os.mkdir(variables_dir)
-		# shutil.rmtree(ignore_errors=True)
-
-		# os.mkdir(variables_dir)
-
 		s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
-
-		# s3.download_file('themed-party-playlist', 'saved_model.pb', 'saved_model.pb') #new #check
-
-		# s3.download_file('themed-party-playlist', 'variables/variables.data-00000-of-00001', 'variables/variables.data-00000-of-00001')
-
-		# s3.download_file('themed-party-playlist', 'variables/variables.index', 'variables/variables.index')
 
 		nlp = Magnitude('glove.6B.300d.magnitude')
 
@@ -536,12 +395,10 @@ def load_nlp():
 	status = 'Getting songs'
 	socketio.emit('new_status', {'status': status}, broadcast=True)
 
-# @socketio.on('connect')
-
 
 @socketio.on('request_nlp') #TODO: change this to 'load-index' or something
 def request_nlp():
-	print('requested nlp') #socketio.stop()
+	print('requested nlp')
 
 	global sim_words
 	sim_words = []
@@ -550,8 +407,6 @@ def request_nlp():
 @app.route('/', methods=['GET', 'POST'])
 def sign_in():
 	print('rendering index page.') #remove #debug
-	# global sim_words
-	# sim_words = []
 
 	global nlpThread
 
@@ -593,8 +448,7 @@ def sign_in():
 		# Step 2. Display sign in link when no token
 		auth_url = auth_manager.get_authorize_url()
 
-		return render_template('sign-in.html', auth_url=auth_url) #new
-		# return f'<h2><a href="{auth_url}">Sign in</a></h2>'
+		return render_template('sign-in.html', auth_url=auth_url)
 	
 	# Step 4. Signed in, display data
 	global spotify
@@ -628,7 +482,6 @@ def sign_in():
 
 			if input_info['method'] == 'playlist': input_info['playlistName'] = request.form.get('playlistName')
 
-			# sim_words = get_similar_words(nlp, [input_info['theme']], top=6)
 			sim_words = get_similar_words(nlp, input_info['theme'], top=6)
 			
 			def_display = 'block'
@@ -663,7 +516,7 @@ def sign_in():
 						while True:
 							if time.time() > (timeout_start + input_info['trainTime']) or len(relevant_lyrics) >= 250: break #new limit (1000)
 
-							print('page:', page, len(relevant_lyrics)) #remove #debug
+							print('page:', page, 'so far, retrieved', len(relevant_lyrics), 'lyrics') #remove #debug
 							term_lyrics = genius.search_lyrics(theme, per_page=20, page=page)
 
 							if not len(term_lyrics['sections'][0]['hits']): break
@@ -726,7 +579,6 @@ def sign_in():
 
 	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], playlists=userPlaylists, current_time=f'{current_time.tm_hour}:{current_time.tm_min}', async_mode=socketio.async_mode)
 
-# Successfully installed Boto3-1.20.22 botocore-1.23.22 flask-s3-0.3.3 jmespath-0.10.0 s3transfer-0.5.0
 
 # Run application
 if __name__ == "__main__":
