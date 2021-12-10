@@ -51,6 +51,7 @@ import re
 import requests
 import time
 import sys
+import gc
 from io import StringIO
 
 import lyricsgenius
@@ -176,6 +177,8 @@ thread_stop_event = Event()
 
 songs_thread_stop_event = Event()
 
+index_page_event = Event()
+
 matches_thread = None
 
 Session(app)
@@ -270,6 +273,8 @@ class BookshelfThread(Thread):
 		while not thread_stop_event.is_set():
 			song_count = len(songs)
 			for song in songs:
+				if index_page_event.is_set(): break #new #*
+
 				song_result = genius.search_song(song['name'], song['artists'][0])
 
 				if song_result is not None:
@@ -358,6 +363,8 @@ class MatchesThread(Thread):
 		while not thread_stop_event.is_set():
 			song_count = len(songs_with_lyrics)
 			for song in songs_with_lyrics:
+				if index_page_event.is_set(): break #new #*
+
 				if song in matches:
 					print(f'song {song["name"]} is a match.')
 					subSongs.append(song['id'])
@@ -441,6 +448,8 @@ def request_nlp():
 def sign_in():
 	print('rendering index page.') #remove #debug
 
+	gc.collect()
+
 	global nlpThread
 
 	if nlpThread is None:
@@ -452,6 +461,10 @@ def sign_in():
 
 	bookshelf_thread = None #reset
 	matches_thread = None #reset
+
+	index_page_event.set() #set it to stop any threads that might be running
+
+	index_page_event.clear() #unset it
 
 	thread_stop_event.clear() #unset it
 	songs_thread_stop_event.clear() #unset it
