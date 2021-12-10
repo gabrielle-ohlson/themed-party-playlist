@@ -2,6 +2,7 @@
 
 Web application written in Python using `flask` and deployed on Heroku.
 
+‘Themed Party Playlist’ is a python program that uses NLP (Natural Language Processing) in tandem with the Spotipy and LyricsGenius APIs to create a themed-playlist based on a user-specified keyword (e.g. ‘food’ or ‘technology’).  Various NLP tool kits such as GloVe (alongside pytorch) and Top2Vec (a python library that generates jointly embedded document and word vectors) are utilized to train a model that parses lyrics and identifies words that align with the given ‘theme’ or category.  For example, if the theme were ‘food’, the program would ideally look for songs that mention words such as ‘hamburger’, ‘taste’, ‘whipped cream’, etc.  The user can specify how they want the program to locate songs to analyze (saved songs, most listened to, etc.) through a nifty web interface that provides a visualization of the playlist creation while the code is running, with fun, interactive graphics.  Once enough songs are found that match the given theme, the program accesses the user’s Spotify account and create a playlist.
 
 ## Usage
 
@@ -16,4 +17,4 @@ Web application written in Python using `flask` and deployed on Heroku.
 4. Press the `submit!` button when you're ready.
 5. After the NLP models are loaded and you've hit submit, you will be presented with related terms to your theme. You can opt to include a number of these synonyms in the data used for finding songs that match your theme by checking the given terms. Submit when you're done.
 6. You will be redirected to the `create-playlist` page. Watch as the albums are removed/added to the bookshelf in the interactive visualization as your playlist is being built!
-7. Finally, when the model is done, you will see the header: `Playlsit created` and the record in the interface will stop spinning. Check your spotify account to see the generated playlist.
+7. Finally, when the model is done, you will see the header: `Playlist created` and the record in the interface will stop spinning. Check your spotify account to see the generated playlist.
