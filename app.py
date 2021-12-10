@@ -42,6 +42,9 @@ from flask_session import Session
 from flask_socketio import SocketIO
 from threading import Thread, Event
 
+from rq import Queue #new
+from worker import conn #new
+
 import uuid
 import os
 import re
@@ -60,6 +63,7 @@ import boto3
 import themes
 import topic
 from sim import get_similar_words
+from matchesWorker import start_matches_thread
 
 # import base64
 import csv
@@ -289,14 +293,36 @@ class BookshelfThread(Thread):
 					thread_stop_event.clear()
 
 					global matches
-					matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+
+					
+					# topic_job = q.enqueue(topic.top_lyrics, kwargs={'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}, job_id='topic_job_id') #, on_success=nlp_job_succeeded, on_failure=nlp_job_failed)
+
+					# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 
 					print('got matches.') #remove #debug
 					
-					def start_matches_thread():
-						print('start_matches_thread....') #remove #debug
-						matches_thread = MatchesThread()
-						matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
+					# def start_matches_thread():
+					# 	print('start_matches_thread....') #remove #debug
+					# 	matches_thread = MatchesThread()
+					# 	matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
+
+					matches_thread = MatchesThread() #new #*
+
+					q = Queue(connection=conn)
+
+					global topic_job
+					global matches_job
+
+					topic_job = q.enqueue(topic.top_lyrics, kwargs={'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}, job_id='topic_job_id') #, on_success=nlp_job_succeeded, on_failure=nlp_job_failed)
+
+					matches_job = q.enqueue(start_matches_thread, kwargs={'thread': matches_thread}, job_id='matches_job_id', depends_on=topic_job)
+
+					# jobs = q.enqueue_many(
+					# 	[
+					# 		Queue.prepare_data(topic.top_lyrics, kwargs= {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}, job_id='topic_job_id'),
+					# 		Queue.prepare_data(start_matches_thread, kwargs={'thread': matches_thread}),
+					# 	]
+					# )
 
 					with app.test_request_context():
 						connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
@@ -316,6 +342,11 @@ class MatchesThread(Thread):
 		self.delay = 1
 		super(MatchesThread, self).__init__()
 	def update_bookshelf_with_matches(self):
+		global topic_job
+
+		matches = topic_job.result
+
+		print('matches:', matches)
 		print('updating bookshelf (again), this time to contain only matches') #debug
 
 		socketio.emit('finding_matches', namespace='/create-playlist', broadcast=True)
@@ -376,6 +407,8 @@ status = 'Loading NLP model'
 nlpThread = None
 songsThread = None
 
+topic_job = None
+matches_job = None
 
 def load_nlp():
 	print('loading nlp...') #debug
