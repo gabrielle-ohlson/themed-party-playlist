@@ -1,13 +1,25 @@
 # backend for web app
-
+# import eventlet
+# eventlet.monkey_patch()
 async_mode = None
 
 if async_mode is None:
+	# if async_mode is None:
 	try:
 		from gevent import monkey
+		# async_mode = 'gevent'
 		async_mode = 'gevent'
 	except ImportError:
 		pass
+	
+	'''
+	if async_mode is None:
+		try:
+			import eventlet
+			async_mode = 'eventlet'
+		except ImportError:
+			pass
+	'''
 
 	if async_mode is None:
 		async_mode = 'threading'
@@ -15,19 +27,20 @@ if async_mode is None:
 	print('async_mode is ' + async_mode)
 
 
-# monkey patching is necessary because this application uses a background (with threads)
+# monkey patching is necessary because this application uses a background
 if async_mode == 'gevent':
 	from gevent import monkey
 	monkey.patch_all()
+# elif async_mode == 'eventlet':
+# 	import eventlet
+# 	eventlet.monkey_patch()
 
 
-from flask import Flask, session, request, redirect, render_template, url_for, current_app
+from flask import Flask, session, request, redirect, render_template, url_for, current_app #, copy_current_request_context
 from flask_session import Session
+
 from flask_socketio import SocketIO
 from threading import Thread, Event
-
-from rq import Queue, registry
-from worker import conn
 
 import uuid
 import os
@@ -41,13 +54,12 @@ import lyricsgenius
 import spotipy
 
 from github import Github #TODO: install
-# from pymagnitude import *
-# import boto3
+from pymagnitude import *
+import boto3
 
 import themes
 import topic
 from sim import get_similar_words
-from load_nlp import download_glove
 
 # import base64
 import csv
@@ -107,7 +119,7 @@ AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID')
 
 AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY')
 
-# s3 = boto3.client('s3', region_name='us-west-1')
+s3 = boto3.client('s3', region_name='us-west-1')
 
 S3_BUCKET = os.environ.get('S3_BUCKET')
 
@@ -364,63 +376,18 @@ status = 'Loading NLP model'
 nlpThread = None
 songsThread = None
 
-nlp_job = None
 
-
-def nlp_job_succeeded(job, connection, result, *args, **kwargs):
-	print('succeess!!!') 
-	global nlp
-
-	nlp = job.result
-	# return job.result
-
-def nlp_job_failed(job, connection, type, value, traceback):
-	print('failed :(')
-	pass
-
-
-def background_load_nlp(job_id):
-	q = Queue(connection=conn)
-	job = q.fetch_job(job_id)
+def load_nlp():
 	print('loading nlp...') #debug
-	# global nlp
-
-	# q = Queue(connection=conn)
-
-	# job = q.enqueue(download_glove, job_timeout=500)
-
+	global nlp
 	while True:
-		print('finished?:', job.is_finished)
-		if job.is_finished: break
-		# if nlp is not None: break
+		if nlp is not None: break
+		socketio.sleep(1)
 
-		# nlp = job.result
+		s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
 
-		# print('status:', job.get_status())
+		nlp = Magnitude('glove.6B.300d.magnitude')
 
-		# job_id = job.get_id()
-
-		# # print('nlp:', nlp, job)
-
-		socketio.sleep(100)
-
-		# q = Queue(connection=conn)
-
-		# # global nlp
-
-		# job = q.enqueue(download_glove) #
-
-		# try:
-		# 	job.refresh()
-		# 	nlp = job.result
-		# except:
-		# 	nlp
-		# # # global status
-		# # socketio.sleep(1)
-
-		# s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
-
-		# nlp = Magnitude('glove.6B.300d.magnitude')
 	
 	print('done loading nlp.') #debug
 	global status
@@ -441,39 +408,12 @@ def request_nlp():
 def sign_in():
 	print('rendering index page.') #remove #debug
 
-	global nlp_job
 	global nlpThread
-	global status
 
-	print('nlp_job:', nlp_job)
+	if nlpThread is None:
+		nlpThread = Thread(target=load_nlp)
+		nlpThread.start()
 
-	if nlp_job is None:
-		q = Queue(connection=conn)
-
-		nlp_job = q.enqueue(download_glove, job_id='nlp_job_id', on_success=nlp_job_succeeded, on_failure=nlp_job_failed)
-
-		reg = registry.StartedJobRegistry('default', connection=conn)
-
-		print('current job:', reg.get_job_ids())
-
-		# job_id = nlp_job.get_id()
-
-		# nlpThread = Thread(target=background_load_nlp)
-
-		# nlpThread = Queue(connection=conn)
-
-		# global nlp
-
-		# nlp = nlpThread.enqueue(download_glove) #
-		# # global status
-	
-		# status = 'Getting songs'
-		# socketio.emit('new_status', {'status': status}, broadcast=True)
-
-		# nlpThread = Thread(target=load_nlp)
-		# nlpThread.start()
-
-	print('now, nlp_job:', nlp_job)
 	global bookshelf_thread
 	global matches_thread
 
@@ -483,7 +423,7 @@ def sign_in():
 	thread_stop_event.clear() #unset it
 	songs_thread_stop_event.clear() #unset it
 
-	# global status
+	global status
 
 	global sim_words
 
@@ -516,16 +456,8 @@ def sign_in():
 
 	userPlaylists = spotify.current_user_playlists(limit=50)['items']
 	
-	if request.method == 'POST': # job = Job.fetch(job_key, connection=conn) # if job.is_finished:
-		# if nlpThread is not None and nlpThread.is_alive(): nlpThread.join() #*
-
-		print('finished now?', nlp_job.is_finished)
-		if not nlp_job.is_finished:
-			nlpThread = Thread(target=background_load_nlp, kwargs={'job_id': nlp_job.get_id()})
-			nlpThread.start()
-			nlpThread.join()
-		
-		print('alive?:', nlpThread.is_alive())
+	if request.method == 'POST':
+		if nlpThread is not None and nlpThread.is_alive(): nlpThread.join() #*
 
 		if 'theme' in request.form: #TODO: and 'stopCondition' and request.form
 			status = 'Training model'
