@@ -16,7 +16,7 @@ def top_lyrics(songs, terms, stopNum=None, stopCondition=None, relevant_lyrics=[
 
 	lyrics_ct = len(lyrics)
 	
-	leftover_space = max(0, 250-lyrics_ct)
+	leftover_space = max(0, 200-lyrics_ct)
 
 	relevant_lyrics = relevant_lyrics[:leftover_space]
 
