@@ -146,7 +146,7 @@
 	console.log('connected:', socket.connected);
 
 	socket.on('connect', function() {
-		socket.emit('request_nlp');
+		socket.emit('load_index');
 		console.log('connected:', socket.connected);
 	});
 

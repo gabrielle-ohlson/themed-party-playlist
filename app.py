@@ -3,37 +3,40 @@
 # eventlet.monkey_patch()
 async_mode = None
 
-if async_mode is None:
-	# if async_mode is None:
-	try:
-		from gevent import monkey
-		# async_mode = 'gevent'
-		async_mode = 'gevent'
-	except ImportError:
-		pass
+from gevent import monkey
+monkey.patch_all()
+
+# if async_mode is None:
+# 	# if async_mode is None:
+# 	try:
+# 		from gevent import monkey
+# 		async_mode = 'gevent_uwsgi'
+# 		# async_mode = 'gevent'
+# 	except ImportError:
+# 		pass
 	
-	'''
-	if async_mode is None:
-		try:
-			import eventlet
-			async_mode = 'eventlet'
-		except ImportError:
-			pass
-	'''
+# 	'''
+# 	if async_mode is None:
+# 		try:
+# 			import eventlet
+# 			async_mode = 'eventlet'
+# 		except ImportError:
+# 			pass
+# 	'''
 
-	if async_mode is None:
-		async_mode = 'threading'
+# 	if async_mode is None:
+# 		async_mode = 'threading'
 
-	print('async_mode is ' + async_mode)
+# 	print('async_mode is ' + async_mode)
 
 
-# monkey patching is necessary because this application uses a background
-if async_mode == 'gevent':
-	from gevent import monkey
-	monkey.patch_all()
-# elif async_mode == 'eventlet':
-# 	import eventlet
-# 	eventlet.monkey_patch()
+# # monkey patching is necessary because this application uses a background
+# if async_mode == 'gevent' or async_mode == 'gevent_uwsgi':
+# 	from gevent import monkey
+# 	monkey.patch_all()
+# # elif async_mode == 'eventlet':
+# # 	import eventlet
+# # 	eventlet.monkey_patch()
 
 
 from flask import Flask, session, request, redirect, render_template, url_for, current_app #, copy_current_request_context
@@ -64,7 +67,6 @@ import boto3
 import themes
 import topic
 from sim import get_similar_words
-# from matchesWorker import start_matches_thread
 
 # import base64
 import csv
@@ -179,7 +181,20 @@ songs_thread_stop_event = Event()
 
 index_page_event = Event()
 
-matches_thread = None
+topic_job = None
+matches_job = None
+
+from matchesWorker import start_matches_thread
+
+def job_succeeded(job, connection, result, *args, **kwargs):
+	print(f'{job.get_id()} succeeded!!!') 
+	# return job.result
+
+def job_failed(job, connection, type, value, traceback):
+	print(f'{job.get_id()} failed :(')
+	pass
+
+# matches_thread = None
 
 Session(app)
 
@@ -269,10 +284,12 @@ class BookshelfThread(Thread):
 		global albums
 		albums = [] #reset
 		global songs_with_lyrics
+		songs_with_lyrics = []
 
 		while not thread_stop_event.is_set():
 			song_count = len(songs)
 			for song in songs:
+				print('!', index_page_event.is_set()) #remove #debug
 				if index_page_event.is_set(): break #new #*
 
 				song_result = genius.search_song(song['name'], song['artists'][0])
@@ -292,9 +309,12 @@ class BookshelfThread(Thread):
 					socketio.emit('skip_song', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
 			
 			def get_matches():
-				global matches_thread
+				global topic_job
+				global matches_job
 
-				if matches_thread is None:
+				print('topic_job:', topic_job)
+
+				if topic_job is None:
 					thread_stop_event.clear()
 
 					global matches
@@ -304,21 +324,22 @@ class BookshelfThread(Thread):
 
 					# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 					
-					def start_matches_thread():
-						print('start_matches_thread....') #remove #debug
-						matches_thread = MatchesThread()
-						matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
+					# def start_matches_thread():
+					# 	print('start_matches_thread....') #remove #debug
+					# 	matches_thread = MatchesThread()
+					# 	matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
 
-					# matches_thread = MatchesThread() #new #*
+					# # matches_thread = MatchesThread() #new #*
 
 					q = Queue(connection=conn)
 
-					global topic_job
-					global matches_job
+					# global topic_job
+					# global matches_job
 
-					topic_job = q.enqueue(topic.top_lyrics, kwargs={'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}, job_id='topic_job_id') #, on_success=nlp_job_succeeded, on_failure=nlp_job_failed)
+					topic_job = q.enqueue(topic.top_lyrics, kwargs={'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}, job_id='topic_job_id', on_success=job_succeeded, on_failure=job_failed) #, on_success=nlp_job_succeeded, on_failure=nlp_job_failed)
 
-					matches_job = q.enqueue(start_matches_thread, kwargs={'thread': matches_thread}, job_id='matches_job_id', depends_on=topic_job)
+					matches_job = q.enqueue(start_matches_thread, kwargs={'spotify': spotify, 'matches': topic_job.result, 'songs_with_lyrics': songs_with_lyrics, 'save_as': input_info['saveAs']}, job_id='matches_job_id', depends_on=topic_job, on_success=job_succeeded, on_failure=job_failed)
+
 
 					# jobs = q.enqueue_many(
 					# 	[
@@ -327,10 +348,10 @@ class BookshelfThread(Thread):
 					# 	]
 					# )
 
-					with app.test_request_context():
-						connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
+					# with app.test_request_context():
+					# 	connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
 
-						connect_create_playlist.start()
+					# 	connect_create_playlist.start()
 
 
 			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, namespace='/create-playlist', callback=get_matches, broadcast=True)
@@ -340,52 +361,52 @@ class BookshelfThread(Thread):
 		self.update_bookshelf()
 
 
-class MatchesThread(Thread):
-	def __init__(self):
-		self.delay = 1
-		super(MatchesThread, self).__init__()
-	def update_bookshelf_with_matches(self):
-		global topic_job
+# class MatchesThread(Thread):
+# 	def __init__(self):
+# 		self.delay = 1
+# 		super(MatchesThread, self).__init__()
+# 	def update_bookshelf_with_matches(self):
+# 		global topic_job
 
-		matches = topic_job.result
+# 		matches = topic_job.result
 
-		print('matches:', matches)
-		print('updating bookshelf (again), this time to contain only matches') #debug
+# 		print('matches:', matches)
+# 		print('updating bookshelf (again), this time to contain only matches') #debug
 
-		socketio.emit('finding_matches', namespace='/create-playlist', broadcast=True)
+# 		socketio.emit('finding_matches', namespace='/create-playlist', broadcast=True)
 
-		theme_songs = []
-		subSongs = []
-		description = []
+# 		theme_songs = []
+# 		subSongs = []
+# 		description = []
 
-		while not thread_stop_event.is_set():
-			song_count = len(songs_with_lyrics)
-			for song in songs_with_lyrics:
-				if index_page_event.is_set(): break #new #*
+# 		while not thread_stop_event.is_set():
+# 			song_count = len(songs_with_lyrics)
+# 			for song in songs_with_lyrics:
+# 				if index_page_event.is_set(): break #new #*
 
-				if song in matches:
-					print(f'song {song["name"]} is a match.')
-					subSongs.append(song['id'])
+# 				if song in matches:
+# 					print(f'song {song["name"]} is a match.')
+# 					subSongs.append(song['id'])
 
-					if len(subSongs) == 100:
-						theme_songs.append(subSongs)
-						subSongs = []
-				else:
-					song_count -= 1
-					print('removing:', song['name'], song_count) #debug
-					el_id = song['name'].replace(' ', '-')
-					socketio.emit('remove_album', {'id': el_id, 'name': song['name'], 'song_count': song_count}, namespace='/create-playlist', broadcast=True)
+# 					if len(subSongs) == 100:
+# 						theme_songs.append(subSongs)
+# 						subSongs = []
+# 				else:
+# 					song_count -= 1
+# 					print('removing:', song['name'], song_count) #debug
+# 					el_id = song['name'].replace(' ', '-')
+# 					socketio.emit('remove_album', {'id': el_id, 'name': song['name'], 'song_count': song_count}, namespace='/create-playlist', broadcast=True)
 
-					socketio.sleep(2)
+# 					socketio.sleep(2)
 
-			if len(subSongs): theme_songs.append(subSongs)
+# 			if len(subSongs): theme_songs.append(subSongs)
 
-			themes.generatePlaylist(spotify, theme_songs, input_info['saveAs'], description)
+# 			themes.generatePlaylist(spotify, theme_songs, input_info['saveAs'], description)
 
-			socketio.emit('done', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
-			thread_stop_event.set()
-	def run(self):
-		self.update_bookshelf_with_matches()
+# 			socketio.emit('done', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
+# 			thread_stop_event.set()
+# 	def run(self):
+# 		self.update_bookshelf_with_matches()
 
 
 @socketio.on('bookshelf', namespace='/create-playlist')
@@ -434,9 +455,21 @@ def load_nlp():
 	socketio.emit('new_status', {'status': status}, broadcast=True)
 
 
-@socketio.on('request_nlp') #TODO: change this to 'load-index' or something
-def request_nlp():
-	print('requested nlp')
+@socketio.on('load_index') #TODO: change this to 'load-index' or something
+def load_index():
+	print('loading index page')
+
+	index_page_event.set()
+
+	print('!!!!', index_page_event.is_set())
+
+	if topic_job is not None: topic_job.cancel()
+
+	if matches_job is not None: matches_job.cancel()
+
+	print('topic_job:', topic_job)
+
+	# index_page_event.clear()
 
 	global sim_words
 	sim_words = []
@@ -444,6 +477,7 @@ def request_nlp():
 
 @app.route('/', methods=['GET', 'POST'])
 def sign_in():
+	print('async mode:', socketio.async_mode)
 	print('rendering index page.') #remove #debug
 
 	gc.collect()
@@ -455,10 +489,10 @@ def sign_in():
 		nlpThread.start()
 
 	global bookshelf_thread
-	global matches_thread
+	# global matches_thread
 
 	bookshelf_thread = None #reset
-	matches_thread = None #reset
+	# matches_thread = None #reset
 
 	index_page_event.set() #set it to stop any threads that might be running
 
