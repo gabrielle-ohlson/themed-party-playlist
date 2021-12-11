@@ -140,6 +140,8 @@ thread_stop_event = Event()
 
 songs_thread_stop_event = Event()
 
+index_page_event = Event()
+
 matches_thread = None
 
 Session(app)
@@ -230,10 +232,15 @@ class BookshelfThread(Thread):
 		global albums
 		albums = [] #reset
 		global songs_with_lyrics
+		songs_with_lyrics = [] #reset
 
 		while not thread_stop_event.is_set():
 			song_count = len(songs)
 			for song in songs:
+				print(index_page_event.is_set()) #remove #debug
+
+				if index_page_event.is_set(): break #new #*
+
 				song_result = genius.search_song(song['name'], song['artists'][0])
 
 				if song_result is not None:
@@ -295,6 +302,10 @@ class MatchesThread(Thread):
 		while not thread_stop_event.is_set():
 			song_count = len(songs_with_lyrics)
 			for song in songs_with_lyrics:
+				print(index_page_event.is_set()) #remove #debug
+				
+				if index_page_event.is_set(): break #new #*
+
 				if song in matches:
 					print(f'song {song["name"]} is a match.')
 					subSongs.append(song['id'])
@@ -322,6 +333,8 @@ class MatchesThread(Thread):
 
 @socketio.on('bookshelf', namespace='/create-playlist')
 def bookshelf_start():
+	index_page_event.clear() #reset
+
 	global bookshelf_thread
 
 	print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread, 'namespace is:', request.namespace) #remove #debug
@@ -364,12 +377,21 @@ def load_nlp():
 	socketio.emit('new_status', {'status': status}, broadcast=True)
 
 
-@socketio.on('request_nlp') #TODO: change this to 'load-index' or something
-def request_nlp():
-	print('requested nlp')
+def_display = 'none'
+
+@socketio.on('load_index') #TODO: change this to 'load-index' or something
+def load_index():
+	print('loaded index page')
+	global def_display
+
+	def_display = 'none'
 
 	global sim_words
 	sim_words = []
+
+	index_page_event.set() #set it to stop any threads that might be running
+
+	# index_page_event.clear() #unset it
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -388,6 +410,10 @@ def sign_in():
 	bookshelf_thread = None #reset
 	matches_thread = None #reset
 
+	# index_page_event.set() #set it to stop any threads that might be running
+
+	# index_page_event.clear() #unset it
+
 	thread_stop_event.clear() #unset it
 	songs_thread_stop_event.clear() #unset it
 
@@ -396,8 +422,6 @@ def sign_in():
 	global sim_words
 
 	sim_words = []
-
-	def_display = 'none'
 
 	if not session.get('uuid'):
 		# Step 1. Visitor is unknown, give random ID
@@ -452,6 +476,8 @@ def sign_in():
 
 			sim_words = get_similar_words(nlp, input_info['theme'], top=6)
 			
+			global def_display
+
 			def_display = 'block'
 
 			def getSongs():

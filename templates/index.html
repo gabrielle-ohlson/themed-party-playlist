@@ -133,19 +133,13 @@
 </div>
 
 <script>
-	var socket = io.connect();
 
-	// console.log({{sim_words}}); //remove //debug
-	// console.log(location.host, location.protocol, location);
-	// console.log(location.href, location.host, location.hostname);
-	// let connect_url = 'http://' + document.domain;
-	// if (location.port) connect_url += `:${location.port}`;
-	// console.log(connect_url);
-	// console.log(location.href);
+	var socket = io.connect();
 
 	console.log('connected:', socket.connected);
 
 	socket.on('connect', function() {
+		// document.getElementById('def-container').style.display = 'none'; //to start
 		socket.emit('load_index');
 		console.log('connected:', socket.connected);
 	});
