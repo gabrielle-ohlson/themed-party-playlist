@@ -37,3 +37,6 @@ variables/
 README-debug.md
 
 aws/
+
+matchesWorker.py
+worker.py
