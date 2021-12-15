@@ -40,3 +40,7 @@ aws/
 
 matchesWorker.py
 worker.py
+.python_packages
+
+# azure
+local.settings.json

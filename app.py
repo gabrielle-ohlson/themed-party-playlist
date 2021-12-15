@@ -17,6 +17,9 @@ import requests
 import time
 import sys
 from io import StringIO
+import json
+
+import asyncio
 
 import lyricsgenius
 import spotipy
@@ -24,9 +27,11 @@ import spotipy
 from github import Github #TODO: install
 from pymagnitude import *
 import boto3
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient, __version__
+# from azure.storage.blob.aio import BlobClient
 
 import themes
-import topic
+# import topic
 from sim import get_similar_words
 
 # import base64
@@ -83,6 +88,26 @@ app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
 app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
 app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
 
+_AZFUNC_API_URL = environ.get('_AZFUNC_API_URL')
+app.config['_AZFUNC_API_URL'] = _AZFUNC_API_URL
+
+AZURE_STORAGE_CONNECTION_STRING = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+app.config['AZURE_STORAGE_CONNECTION_STRING'] = AZURE_STORAGE_CONNECTION_STRING
+
+# Create the BlobServiceClient object which will be used to create a container client
+blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+
+
+# Create a unique name for the container
+# container_name = str(uuid.uuid4())
+container_name = 'topic-data'
+
+# Create the container
+# container_client = blob_service_client.create_container(container_name)
+
+blob_block = ContainerClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name=container_name)
+
+
 AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID')
 
 AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY')
@@ -136,10 +161,9 @@ connected_clients = []
 #update_bookshelf Generator Thread
 bookshelf_thread = None
 
-thread_stop_event = Event()
-
+bookshelf_thread_stop_event = Event()
+matches_thread_stop_event = Event()
 songs_thread_stop_event = Event()
-
 index_page_event = Event()
 
 matches_thread = None
@@ -222,6 +246,116 @@ def await_connection(ns, cb=None):
 	print(f'namespace: {ns} is now connected!') #debug
 
 
+def start_matches_thread():
+	global matches_thread
+	print('start_matches_thread....') #remove #debug
+	matches_thread = MatchesThread()
+	matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
+
+
+def get_matches():
+	global matches_thread
+	global matches
+
+	print('#', matches_thread, matches) #remove
+
+	if matches_thread is None and matches is None:
+		matches_thread_stop_event.clear() #?
+		# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+
+		r_params = {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}
+
+		# matches = requests.get(_AZFUNC_API_URL, params=r_params)
+
+		# print('!!!', matches.text)
+		# print('!', matches.json())
+
+		blob_name = 'blob_data.json'
+
+		blob_data = json.dumps(r_params, ensure_ascii=False)
+
+		blob_block.upload_blob(blob_name, blob_data, overwrite=True, encoding='utf-8')
+
+		# async def await_blob():
+		# 	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
+
+		# 	async with blob:
+		# 		exists = await blob.exists()
+
+		# 		if exists:
+		# 			blob_content = blob.download_blob()
+
+		# 			print('blob:', blob, 'blob_content:', blob_content)
+		# 			blob.delete_blob("data.json")
+
+		# 			return blob_content
+		# def get_blob():
+		blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
+
+		while not blob.exists():
+			time.sleep(2)
+			continue
+
+		print('!', blob.exists())
+
+
+		# async with blob:
+		# 	exists = await blob.exists()
+
+		# 	if exists:
+		blob_content = blob.download_blob().readall()
+
+		print('blob:', blob, 'blob_content:', blob_content)
+		blob.delete_blob()
+
+		# return blob_content
+		# async def await_blob():
+		# 	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
+
+		# 	async with blob:
+		# 		exists = await blob.exists()
+
+		# 		if exists:
+		# 			blob_content = blob.download_blob()
+
+		# 			print('blob:', blob, 'blob_content:', blob_content)
+		# 			blob.delete_blob("data.json")
+
+		# 			return blob_content
+		
+		# blob_content = get_blob()
+
+		matches = json.loads(blob_content)
+
+		# delete blob
+		# song_data_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+		# song_data_client = song_data_service_client.get_container_client(container='song-data')
+		
+
+		
+
+
+
+		# matches = requests.get(_AZFUNC_API_URL, params={'container_name': container_name, 'blob_name': blob_name})
+
+		# Create a local directory to hold blob data
+		
+
+
+		# def main(req: func.HttpRequest) -> func.HttpResponse:
+		# 	message = f"songs: {songs_with_lyrics}, terms: {terms}, stopNum: {input_info['stopNum']}, stopCondition: {input_info['stopCondition']}, relevant_lyrics: {relevant_lyrics}"
+		# 	return func.HttpResponse(message)
+		
+
+		print('got matches.') #remove #debug
+
+		with app.test_request_context():
+			connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
+
+			connect_create_playlist.start()
+
+
+
 class BookshelfThread(Thread):
 	def __init__(self):
 		self.delay = 1
@@ -234,11 +368,9 @@ class BookshelfThread(Thread):
 		global songs_with_lyrics
 		songs_with_lyrics = [] #reset
 
-		while not thread_stop_event.is_set():
+		while not bookshelf_thread_stop_event.is_set():
 			song_count = len(songs)
 			for song in songs:
-				print(index_page_event.is_set()) #remove #debug
-
 				if index_page_event.is_set(): break #new #*
 
 				song_result = genius.search_song(song['name'], song['artists'][0])
@@ -257,31 +389,11 @@ class BookshelfThread(Thread):
 					song_count -= 1
 					socketio.emit('skip_song', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
 			
-			def get_matches():
-				global matches_thread
-
-				if matches_thread is None:
-					thread_stop_event.clear()
-
-					global matches
-					matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
-
-					print('got matches.') #remove #debug
-					
-					def start_matches_thread():
-						print('start_matches_thread....') #remove #debug
-						matches_thread = MatchesThread()
-						matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
-
-					with app.test_request_context():
-						connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
-
-						connect_create_playlist.start()
-
+			print('!')
 
 			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, namespace='/create-playlist', callback=get_matches, broadcast=True)
 
-			thread_stop_event.set()
+			bookshelf_thread_stop_event.set()
 	def run(self):
 		self.update_bookshelf()
 
@@ -299,11 +411,9 @@ class MatchesThread(Thread):
 		subSongs = []
 		description = []
 
-		while not thread_stop_event.is_set():
+		while not matches_thread_stop_event.is_set():
 			song_count = len(songs_with_lyrics)
-			for song in songs_with_lyrics:
-				print(index_page_event.is_set()) #remove #debug
-				
+			for song in songs_with_lyrics:				
 				if index_page_event.is_set(): break #new #*
 
 				if song in matches:
@@ -326,7 +436,7 @@ class MatchesThread(Thread):
 			themes.generatePlaylist(spotify, theme_songs, input_info['saveAs'], description)
 
 			socketio.emit('done', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
-			thread_stop_event.set()
+			matches_thread_stop_event.set()
 	def run(self):
 		self.update_bookshelf_with_matches()
 
@@ -337,7 +447,7 @@ def bookshelf_start():
 
 	global bookshelf_thread
 
-	print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread, 'namespace is:', request.namespace) #remove #debug
+	print('restarting bookshelf...') #remove #debug
 
 	if bookshelf_thread is None and spotify is not None and nlp is not None:
 		print('starting BookshelfThread...') #debug
@@ -391,6 +501,8 @@ def load_index():
 
 	index_page_event.set() #set it to stop any threads that might be running
 
+	global matches
+	matches = None #for now
 	# index_page_event.clear() #unset it
 
 
@@ -414,7 +526,8 @@ def sign_in():
 
 	# index_page_event.clear() #unset it
 
-	thread_stop_event.clear() #unset it
+	bookshelf_thread_stop_event.clear() #unset it
+	matches_thread_stop_event.clear() #unset it
 	songs_thread_stop_event.clear() #unset it
 
 	global status
