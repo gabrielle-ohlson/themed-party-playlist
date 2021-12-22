@@ -19,8 +19,6 @@ import sys
 from io import StringIO
 import json
 
-import asyncio
-
 import lyricsgenius
 import spotipy
 
@@ -303,12 +301,14 @@ def get_matches():
 
 	print('sending request to azure backend...') #debug
 
+	socketio.sleep(30)
+
 	blob_tries = 1
 	while not blob.exists():
 		if blob_tries > 6: break
 		print(f'blob exists: {blob.exists()} (try #{blob_tries}).') #remove #debug
 		blob_tries += 1 #remove #debug
-		socketio.sleep(30) #change to higher number #?
+		socketio.sleep(20)
 		continue
 
 	print('now, blob exists:', blob.exists()) #remove #debug
@@ -448,7 +448,7 @@ def start_get_matches_thread():
 		print('start_get_matches_thread:', get_matches_thread, thread_joined) #remove
 		matches_thread_stop_event.clear() #?
 
-		r_params = {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}
+		r_params = {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics, 'threshold': 0.05}
 
 		blob_name = 'blob_data.json'
 		blob_data = json.dumps(r_params, ensure_ascii=False)
