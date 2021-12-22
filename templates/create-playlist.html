@@ -431,9 +431,10 @@
 
 	socket.on('got_lyrics', function(data, cb) {
 		console.log('event: got_lyrics'); //remove //debug
+		socket.emit('find_matches'); //new
 		// status.innerText = 'Generating jointly embedded topic/doc vectors';
 		status.innerText = data.status;
-		// cb();
+		cb(); //new //*
 		// socket.emit('find_matches');
 	});
 

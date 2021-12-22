@@ -44,3 +44,8 @@ worker.py
 
 # azure
 local.settings.json
+
+local/
+
+
+.cache

@@ -167,6 +167,7 @@ songs_thread_stop_event = Event()
 index_page_event = Event()
 
 matches_thread = None
+get_matches_thread = None
 
 Session(app)
 
@@ -192,7 +193,7 @@ input_info = {
 
 userPlaylists = {}
 
-topic_dictionary = {}
+# topic_dictionary = {}
 terms = []
 
 albums = []
@@ -220,12 +221,12 @@ def register_client():
 @socketio.on('connect', namespace='/create-playlist')
 def register_client():
 	if request.namespace not in connected_clients: connected_clients.append(request.namespace)
-	print(f'connected: {request.sid}. Namespace: {request.namespace}. (total connections: {len(connected_clients)})')
+	print(f'connected: {request.sid}. Namespace: {request.namespace} (total connections: {len(connected_clients)}).')
 
 
 @socketio.on('disconnect')
 def unregister_client():
-	print('disconnected:', request.sid, request.namespace)
+	print(f'disconnected: {request.sid}. Namespace: {request.namespace} (total connections: {len(connected_clients)}).')
 	if request.namespace in connected_clients: connected_clients.remove(request.namespace)
 
 
@@ -253,107 +254,211 @@ def start_matches_thread():
 	matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
 
 
+# @socketio.on('find_matches', namespace='/create-playlist')
 def get_matches():
 	global matches_thread
 	global matches
 
-	print('#', matches_thread, matches) #remove
+	# global get_matches_thread
 
-	if matches_thread is None and matches is None:
+	print('client requested "find_matches". finding matches...', matches_thread, matches) #remove
+
+	# if matches_thread is None and matches is None:
+	# if get_matches_thread is None and matches is None:
+	# 	# s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
+
+	# 	# nlp = Magnitude('glove.6B.300d.magnitude')
+	# 	matches_thread_stop_event.clear() #?
+	# 	# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+
+	# 	r_params = {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}
+
+	# 	# matches = requests.get(_AZFUNC_API_URL, params=r_params)
+
+	# 	# print('!!!', matches.text)
+	# 	# print('!', matches.json())
+
+	# 	blob_name = 'blob_data.json'
+
+	# 	blob_data = json.dumps(r_params, ensure_ascii=False)
+
+	# 	# blob_block.upload_blob(name=blob_name, data=blob_data, overwrite=True, encoding='utf-8')
+	# 	blob_block.upload_blob(name=blob_name, data=blob_data, overwrite=True, encoding='utf-8')
+
+	# 	# async def await_blob():
+	# 	# 	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
+
+	# 	# 	async with blob:
+	# 	# 		exists = await blob.exists()
+
+	# 	# 		if exists:
+	# 	# 			blob_content = blob.download_blob()
+
+	# 	# 			print('blob:', blob, 'blob_content:', blob_content)
+	# 	# 			blob.delete_blob("data.json")
+
+	# 	# 			return blob_content
+	# 	# def get_blob():
+	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
+
+	print('sending request to azure backend...') #debug
+
+	blob_tries = 1
+	while not blob.exists():
+		if blob_tries > 6: break
+		print(f'blob exists: {blob.exists()} (try #{blob_tries}).') #remove #debug
+		blob_tries += 1 #remove #debug
+		socketio.sleep(30) #change to higher number #?
+		continue
+
+	print('now, blob exists:', blob.exists()) #remove #debug
+
+	if blob.exists():
+		blob_content = blob.download_blob().readall()
+
+		print('blob:', blob, 'blob_content:', blob_content) #remove #debug
+		blob.delete_blob()
+
+		matches = json.loads(blob_content)
+	else:
+		matches = []
+		thresh = 0.5
+
+		import synoynm as syn
+
+		topic_dictionary = {}
+
+		for term in terms:
+			definitions = syn.word_scorer(term)
+			print('definitions:', definitions) #remove #debug
+			topic_dictionary[term] = definitions[0][0]
+
+		print('topic_dictionary:', topic_dictionary) #remove #debug
+
+		for song in songs_with_lyrics:
+			songLyrics = song['lyrics']
+
+			words = syn.prep_phrase(songLyrics)
+
+			matches_theme = False
+
+			for term in terms:
+				if matches_theme: break
+				# vector_dists = nlp.distance(term, words)
+				# .sort() #sorts from lowest to highest
+
+				# print("vector_dists:", vector_dists) #remove #debug
+				sim_words = []
+				for word in words:
+					sim_score = nlp.similarity(term, word)
+					if sim_score >= thresh:
+						sim_words.append(word)
+						print(f"\nAdding '{song['name']}' by {song['artists'][0]} to playlist because it passes the similarity threshold with a score of {sim_score} and contains the keyword: '{word}'\n")
+						matches.append(song)
+						matches_theme = True
+						break
+
+				similarity_scores = nlp.similarity(term, words)
+				similarity_scores.sort(reverse=True)
+				print(f'top 3 similarity_scores for "{song["name"]}" with term "{term}":', similarity_scores[:3]) #remove #debug
+
+				if similarity_scores[0] >= thresh: print('\n!', song['name'], similarity_scores[0])
+
+			# lyricMatches = syn.multi_topic_scorer(songLyrics, topic_dictionary, sim_thresh=0.8, return_hits=True)
+
+			# matches_theme = False
+
+			# for match in lyricMatches.values():
+			# 	if match[0] > 0:
+			# 		keywords = match[1]
+			# 		print(f"Adding {song['name']} by {song['artists'][0]} to playlist because it passes the similarity threshold with a score of {match[0]} and contains the keywords: {keywords}\n")
+			# 		matches_theme = True
+			# 		break
+			
+			# if matches_theme: matches.append(song) #TODO: have limit that complies with condition for stopping the program
+
+
+
+	# # async with blob:
+	# # 	exists = await blob.exists()
+
+	# # 	if exists:
+	# blob_content = blob.download_blob().readall()
+
+	# print('blob:', blob, 'blob_content:', blob_content)
+	# blob.delete_blob()
+
+	# # return blob_content
+	# # async def await_blob():
+	# # 	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
+
+	# # 	async with blob:
+	# # 		exists = await blob.exists()
+
+	# # 		if exists:
+	# # 			blob_content = blob.download_blob()
+
+	# # 			print('blob:', blob, 'blob_content:', blob_content)
+	# # 			blob.delete_blob("data.json")
+
+	# # 			return blob_content
+	
+	# # blob_content = get_blob()
+
+	# matches = json.loads(blob_content)
+
+	# # delete blob
+	# # song_data_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+	# # song_data_client = song_data_service_client.get_container_client(container='song-data')
+	
+
+	
+
+
+
+	# # matches = requests.get(_AZFUNC_API_URL, params={'container_name': container_name, 'blob_name': blob_name})
+
+	# # Create a local directory to hold blob data
+	
+
+
+	# # def main(req: func.HttpRequest) -> func.HttpResponse:
+	# # 	message = f"songs: {songs_with_lyrics}, terms: {terms}, stopNum: {input_info['stopNum']}, stopCondition: {input_info['stopCondition']}, relevant_lyrics: {relevant_lyrics}"
+	# # 	return func.HttpResponse(message)
+	
+
+	print('got matches.') #remove #debug
+
+	with app.test_request_context():
+		connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
+
+		connect_create_playlist.start()
+
+thread_joined = False
+def start_get_matches_thread():
+	global thread_joined
+	
+	global get_matches_thread
+	print('start_get_matches_thread....') #remove #debug
+
+	# if get_matches_thread is None:
+	if not thread_joined:
+		thread_joined = True
+
+		print('start_get_matches_thread:', get_matches_thread, thread_joined) #remove
 		matches_thread_stop_event.clear() #?
-		# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
 
 		r_params = {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}
 
-		# matches = requests.get(_AZFUNC_API_URL, params=r_params)
-
-		# print('!!!', matches.text)
-		# print('!', matches.json())
-
 		blob_name = 'blob_data.json'
-
 		blob_data = json.dumps(r_params, ensure_ascii=False)
+		blob_block.upload_blob(name=blob_name, data=blob_data, overwrite=True, encoding='utf-8')
 
-		blob_block.upload_blob(blob_name, blob_data, overwrite=True, encoding='utf-8')
+		get_matches_thread = Thread(target=get_matches)
+		get_matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
 
-		# async def await_blob():
-		# 	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
-
-		# 	async with blob:
-		# 		exists = await blob.exists()
-
-		# 		if exists:
-		# 			blob_content = blob.download_blob()
-
-		# 			print('blob:', blob, 'blob_content:', blob_content)
-		# 			blob.delete_blob("data.json")
-
-		# 			return blob_content
-		# def get_blob():
-		blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
-
-		while not blob.exists():
-			time.sleep(2)
-			continue
-
-		print('!', blob.exists())
-
-
-		# async with blob:
-		# 	exists = await blob.exists()
-
-		# 	if exists:
-		blob_content = blob.download_blob().readall()
-
-		print('blob:', blob, 'blob_content:', blob_content)
-		blob.delete_blob()
-
-		# return blob_content
-		# async def await_blob():
-		# 	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
-
-		# 	async with blob:
-		# 		exists = await blob.exists()
-
-		# 		if exists:
-		# 			blob_content = blob.download_blob()
-
-		# 			print('blob:', blob, 'blob_content:', blob_content)
-		# 			blob.delete_blob("data.json")
-
-		# 			return blob_content
-		
-		# blob_content = get_blob()
-
-		matches = json.loads(blob_content)
-
-		# delete blob
-		# song_data_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
-		# song_data_client = song_data_service_client.get_container_client(container='song-data')
-		
-
-		
-
-
-
-		# matches = requests.get(_AZFUNC_API_URL, params={'container_name': container_name, 'blob_name': blob_name})
-
-		# Create a local directory to hold blob data
-		
-
-
-		# def main(req: func.HttpRequest) -> func.HttpResponse:
-		# 	message = f"songs: {songs_with_lyrics}, terms: {terms}, stopNum: {input_info['stopNum']}, stopCondition: {input_info['stopCondition']}, relevant_lyrics: {relevant_lyrics}"
-		# 	return func.HttpResponse(message)
-		
-
-		print('got matches.') #remove #debug
-
-		with app.test_request_context():
-			connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
-
-			connect_create_playlist.start()
-
+		get_matches_thread.join() #new #*
+		print('thread is done.')
 
 
 class BookshelfThread(Thread):
@@ -389,9 +494,10 @@ class BookshelfThread(Thread):
 					song_count -= 1
 					socketio.emit('skip_song', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
 			
-			print('!')
+			print('done parsing songs.') #remove #debug
 
-			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, namespace='/create-playlist', callback=get_matches, broadcast=True)
+			socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, namespace='/create-playlist', callback=start_get_matches_thread, broadcast=True)
+			# socketio.emit('got_lyrics', {'status': 'Generating jointly embedded topic/doc vectors'}, namespace='/create-playlist', broadcast=True)
 
 			bookshelf_thread_stop_event.set()
 	def run(self):
@@ -559,6 +665,8 @@ def sign_in():
 	global spotify
 	spotify = spotipy.Spotify(auth_manager=auth_manager)
 
+	global userPlaylists #new #*
+
 	userPlaylists = spotify.current_user_playlists(limit=50)['items']
 	
 	if request.method == 'POST':
@@ -678,6 +786,16 @@ def sign_in():
 			
 			status = 'Ready to create playlist'
 
+			for w in request.form.keys():
+				print(request.form[w], request.form.keys()) #remove #debug
+				if request.form[w] != 'None':
+					# topic_dictionary[w] = request.form[w]
+					terms.append(w)
+
+			additional_terms = request.form.keys()
+
+			print('additional_terms:', additional_terms)
+
 			print('terms:', terms) #remove #debug
 
 			return redirect(url_for('create_playlist'))
@@ -685,6 +803,63 @@ def sign_in():
 	current_time = time.localtime()
 
 	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], playlists=userPlaylists, current_time=f'{current_time.tm_hour}:{current_time.tm_min}', async_mode=socketio.async_mode)
+
+
+def await_response():
+	while True:
+		socketio.on_event('response', namespace='/remove')
+		socketio.sleep()
+
+
+
+def delete_playlists(playlists):
+	for playlist in playlists:
+		spotify.current_user_unfollow_playlist(playlist['id'])
+
+
+
+@app.route('/remove', methods=['GET', 'POST'])
+def remove_playlists():
+	if request.method == 'POST':
+		playlist_names = []
+
+		for p in request.form.keys():
+			print('p:', p) #remove #debug
+			playlist_names.append(p)
+
+		import remove
+
+		all_playlists = remove.getPlaylists(spotify)
+
+		for playlistName in playlist_names:
+			playlist_occurences = list(filter(lambda p: p['name'] == playlistName, all_playlists))
+
+			if len(playlist_occurences):
+				if len(playlist_occurences) > 1:
+					socketio.emit('delete_all', {'p_name': playlistName, 'playlists': playlist_occurences}, namespace='/remove', callback=delete_playlists, broadcast=True)
+
+					# await_response_thread = Thread(target=await_response)
+
+					# await_response_thread.start()
+
+
+					# await_response_thread.join()
+
+					# delete_all = query_yes_no(f"Would you like to delete all occurences of playlists by the name of '{playlistName}'?")
+
+					# if delete_all:
+					# 	for p in playlist_occurences:
+					# 		spotify.current_user_unfollow_playlist(p['id'])
+					# else: spotify.current_user_unfollow_playlist(playlist_occurences[0]['id'])
+				else: delete_playlists(playlist_occurences)
+			else:
+				print(f"no playlists by the name of '{playlistName}' found.")
+				continue
+
+
+
+	if spotify is None: return redirect('/')
+	else: return render_template("remove.html", status=status, playlists=userPlaylists, async_mode=socketio.async_mode)
 
 
 # Run application

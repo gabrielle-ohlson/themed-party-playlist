@@ -1,0 +1,287 @@
+<html>
+<head>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.0/socket.io.js"></script>
+	<link rel="preconnect" href="https://fonts.gstatic.com">
+	<link href="https://fonts.googleapis.com/css2?family=Rubik&display=swap" rel="stylesheet">
+
+<style>
+	body {
+		background-color: #191414;
+		color: #fff;
+	}
+	
+	* {
+		font-family: "Rubik", "sans-serif";
+	}
+
+	div {
+		text-align: center;
+		margin-top: 50px;
+	}
+
+	h1 {
+		color: #1db954; /* #1ed760 */
+		/* color: red; */
+		font-size: 40pt;
+	}
+
+	p {
+		font-size: 24pt;
+		color: #1ed760;
+	}
+
+	#wait {
+		position: absolute;
+	}
+
+	select {
+		max-width: 80vw;
+	}
+
+	input[type=time]::-webkit-datetime-edit-ampm-field {
+		display: none;
+	}
+
+	.without::-webkit-datetime-edit-ampm-field {
+		display: none;
+	}
+
+
+	input[type=time]::-webkit-clear-button {
+		-webkit-appearance: none;
+		-moz-appearance: none;
+		-o-appearance: none;
+		-ms-appearance:none;
+		appearance: none;
+		margin: -10px; 
+	}
+
+	.datetime-edit-field {
+		display: none !important;
+	}
+
+	span.datetime-edit-field.numeric {
+		display: inline !important;
+	}
+
+
+
+</style>
+</head>
+
+<body>
+<div>
+	<h1>Themed Party Playlist: Spotify AI</h1><br>
+	<p>Remove Playlists</p>
+	<p><span id="status" class="loading">{{ status }}</span><span id="wait"></span></p>
+</div>
+<form action="{{ url_for('remove_playlists')}}" method="post">
+	<div class="playlistContainer">
+		<label for="playlistName1">Playlist #1 name:</label>
+		<input type="text" class="playlistInput" id="playlistName1" name="playlistName1" placeholder="playlist to remove" required/>
+		<br>
+	</div>
+	<button id="browsePlaylists" onclick="document.querySelectorAll('.playlistInput')[document.querySelectorAll('.playlistInput').length-1].value = '{{ playlists[0]['name'] }}';">browse playlists</button> <!-- TODO: check to make sure length method is correct for querySelectorAll -->
+		<span id="browsePlaylistsContainer" style="display: none;">
+			<select id="playlistSelect" name="playlistSelect" style="display: block">
+				{% for p in playlists %}
+				<option value="{{p['name']}}"><button>{{p['name']}}</button></option>
+				{% endfor %}
+			</select>
+		</span>
+	<button id="addPlaylist" onclick="anotherPlaylist()">add another playlist</button>
+	<button type="submit">Submit!</button>
+</form>
+<div id="def-container" style="display:{{ def_display }}">
+	<label for="def-form"><b>Related terms to use for '{{ theme }}':</b></label>
+	<form name="def-form" action="{{url_for('sign_in')}}" method="post">
+		{% for w in sim_words: %}
+		<input type="checkbox" id="{{ w }}" name="{{ w }}" />
+		<label for="{{ w }}">Include '{{ w }}'</label>
+			<br>
+		{% endfor %}
+		<button type="submit">Submit!</button>
+	</form>
+</div>
+
+<script>
+
+	var socket = io.connect();
+
+	console.log('connected:', socket.connected);
+
+	socket.on('connect', function() {
+		socket.emit('load_remove'); //new
+		console.log('connected:', socket.connected);
+	});
+
+	let status = document.getElementById('status');
+
+	socket.on('new_status', function(data, cb) {
+		status.classList.remove('loading');
+		status.innerText = data.status;
+	});
+
+	let playlistCt = 1;
+
+	let browsePlaylistsButton = document.getElementById('browsePlaylists');
+
+	function anotherPlaylist() {
+		playlistCt += 1;
+
+		let playlistContainer = document.createElement('div');
+		playlistContainer.classList.add('playlistContainer');
+
+		playlistContainer.innerHTML = `<label for="playlistName${playlistCt}">Playlist #${playlistCt} name:</label><input type="text" class="playlistInput" id="playlistName${playlistCt}" name="playlistName${playlistCt}" placeholder="playlist to remove" required/><br>`;
+
+		browsePlaylistsButton.insertBefore(playlistContainer);
+	}
+
+	socket.on('delete_all', function(data, cb) {
+
+		// add event listener
+
+		let delete_all = false; //for now
+
+		if (delete_all) cb(playlists); //TODO: define delete all (add node to click button delete all)
+		else cb([playlists[0]]);
+
+	})
+
+	// let playlists; //new //*
+	// socket.on('return-user-playlists', function(data, cb) {
+	// 	playlists = data.playlists;
+
+	// 	let playlistsHTML = '<select id="playlistSelect" name="playlistSelect">';
+
+	// 	for (let p of playlists['items']) {
+	// 		playlistsHTML += `<option value="${p['name']}"><button>${p['name']}</button></option>`;
+	// 	}
+
+	// 	playlistsHTML += '</select>';
+	// 	playlistsContainer.innerHTML = playlistsHTML;
+	// 	playlistsContainer.style.display = 'block';
+
+	// 	document.getElementById('playlistSelect').addEventListener('change', (ev) => {
+	// 		playlistName_input.value = ev.target.value;
+	// 	});
+	// });
+
+
+	let submitButtons = document.querySelectorAll('button[type="submit"]');
+
+	submitButtons.forEach(el => {
+		el.onclick = function() {
+			console.log(el.parentElement, el.parentElement.checkValidity());
+			if (el.parentElement.checkValidity()) el.style.display = 'none';
+		}
+	});
+
+	let wait = document.getElementById('wait');
+	
+	let counter = 0;
+	let dots = window.setInterval(function() {
+		counter += 1
+		let num = counter%6;
+		if (num < 4) wait.innerHTML = '.'.repeat(num);
+		else wait.innerHTML = '.'.repeat(6-num);
+	}, 350);
+
+	let theme_input = document.getElementById('theme');
+
+	let method_input = document.getElementById('method');
+	let playlistNameContainer = document.getElementById('playlistNameContainer');
+	let playlistName_input = document.getElementById('playlistName');
+	let playlistsContainer = document.getElementById('browsePlaylistsContainer')
+	let playlistSelect = document.getElementById('playlistSelect');
+
+	let stopCondition_input = document.getElementById('stopCondition');
+	let stopNumContainer = document.getElementById('stopNumContainer');
+	let stopNum_label = document.getElementById('stopNumLabel');
+	let stopNum_input = document.getElementById('stopNum');
+
+	let saveAs_input = document.getElementById('saveAs');
+
+	playlistSelect.addEventListener('change', (ev) => {
+		playlistName_input.value = ev.target.value;
+	});
+
+	addEventListener("DOMContentLoaded", function() {
+		method_input.addEventListener('change', (ev) => {
+			if (ev.target.value === 'playlist') {
+				let playlistButton = document.getElementById('browsePlaylists');
+
+				playlistButton.style.display = 'inline'; //TODO: check
+
+				playlistNameContainer.style.display = 'block';
+				playlistName_input.required = true;
+				
+				playlistButton.addEventListener('click', (ev) => {
+					ev.preventDefault();
+					
+					playlistButton.style.display = 'none';
+
+					playlistsContainer.style.display = 'block';
+
+					// if (playlists === undefined) socket.emit('get-user-playlists'); //new //*
+					/*
+					let request = new XMLHttpRequest();
+					request.onload = function() {
+						let playlists = JSON.parse(request.response);
+
+						let playlistsHTML = '<select id="playlistSelect" name="playlistSelect">';
+						// playlistsContainer.innerHTML += '<select id="playlistSelect" name="playlistSelect">';
+						for (let p of playlists['items']) {
+							playlistsHTML += `<option value="${p['name']}"><button>${p['name']}</button></option>`;
+						}
+						playlistsHTML += '</select>';
+						playlistsContainer.innerHTML = playlistsHTML;
+						playlistsContainer.style.display = 'block';
+
+						document.getElementById('playlistSelect').addEventListener('change', (ev) => {
+							playlistName_input.value = ev.target.value;
+						});
+					}
+
+					request.open('GET', '/user-playlists', true);
+					request.send();
+					*/
+				});
+			} else {
+				playlistNameContainer.style.display = 'none';
+				playlistName_input.required = false;
+				playlistsContainer.style.display = 'none';
+			}
+		});
+	});
+
+	theme_input.addEventListener('blur', (ev) => {
+		if (!saveAs_input.value || !saveAs_input.classList.contains('userSpecified')) saveAs_input.value = `${ev.target.value} party`;
+	});
+
+	saveAs_input.addEventListener('keydown', (ev) => {
+		ev.target.classList.add('userSpecified');
+	});
+
+	stopCondition_input.addEventListener('change', (ev) => {
+		// Number associated with your chosen condition:
+		if (ev.target.value === 'duration') {
+			stopNumContainer.style.display = 'block';
+			stopNum_label.innerText = 'Max playlist duration (in minutes):';
+			stopNum_input.step = 'any';
+			stopNum_input.required = true;
+		} else if (ev.target.value === 'song count') {
+			stopNumContainer.style.display = 'block';
+			stopNum_label.innerText = 'Max number of songs:';
+			stopNum_input.required = true;
+			stopNum_input.step = 1;
+		} else {
+			stopNumContainer.style.display = 'none';
+			stopNum_input.required = false;
+		}
+	});
+
+
+</script>
+</body>
+</html>
