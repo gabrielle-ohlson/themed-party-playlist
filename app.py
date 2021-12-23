@@ -25,7 +25,7 @@ import spotipy
 from github import Github #TODO: install
 from pymagnitude import *
 import boto3
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient, __version__
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 # from azure.storage.blob.aio import BlobClient
 
 import themes
@@ -86,14 +86,14 @@ app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
 app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
 app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
 
-_AZFUNC_API_URL = environ.get('_AZFUNC_API_URL')
-app.config['_AZFUNC_API_URL'] = _AZFUNC_API_URL
+# _AZFUNC_API_URL = environ.get('_AZFUNC_API_URL')
+# app.config['_AZFUNC_API_URL'] = _AZFUNC_API_URL
 
 AZURE_STORAGE_CONNECTION_STRING = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
 app.config['AZURE_STORAGE_CONNECTION_STRING'] = AZURE_STORAGE_CONNECTION_STRING
 
 # Create the BlobServiceClient object which will be used to create a container client
-blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING) #TODO: remove #?
 
 
 # Create a unique name for the container
@@ -189,7 +189,7 @@ input_info = {
 	'trainTime': None
 }
 
-userPlaylists = {}
+userPlaylists = []
 
 # topic_dictionary = {}
 terms = []
@@ -202,12 +202,20 @@ matches = None
 
 info = { 'duration': 0, 'song count': 0 }
 
+def_display = 'none'
+
+sim_words = []
+
 def reachedLimit():
 	'''
 	function to check whether the playlist is at the max length (aka met stop condition)
 	'''
 	if input_info['stopNum'] is None or abs(input_info['stopNum']-info[input_info['stopCondition']]) >= 60000 or info[input_info['stopCondition']] < input_info['stopNum']: return False
 	else: return True #break if within 1 minute of stopNum or exceeded stopNum
+
+
+class RestartException(Exception):
+	pass
 
 
 @socketio.on('connect')
@@ -254,185 +262,94 @@ def start_matches_thread():
 
 # @socketio.on('find_matches', namespace='/create-playlist')
 def get_matches():
-	global matches_thread
-	global matches
+	while True:
+		if index_page_event.is_set():
+			print('index page event is set.') #debug
+			break #new #*
 
-	# global get_matches_thread
+		global matches_thread
+		global matches
 
-	print('client requested "find_matches". finding matches...', matches_thread, matches) #remove
+		print('client requested "find_matches". finding matches...', matches_thread, matches) #remove #debug
 
-	# if matches_thread is None and matches is None:
-	# if get_matches_thread is None and matches is None:
-	# 	# s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
+		blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
 
-	# 	# nlp = Magnitude('glove.6B.300d.magnitude')
-	# 	matches_thread_stop_event.clear() #?
-	# 	# matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+		print('sending request to azure backend...') #debug
 
-	# 	r_params = {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics}
+		socketio.sleep(30)
 
-	# 	# matches = requests.get(_AZFUNC_API_URL, params=r_params)
+		blob_tries = 1
+		while not blob.exists():
+			if index_page_event.is_set():
+				print('index page event is set.') #debug
+				return #new #*
+			if blob_tries > 6: break
+			print(f'blob exists: {blob.exists()} (try #{blob_tries}).') #remove #debug
+			blob_tries += 1 #remove #debug
+			socketio.sleep(20)
+			continue
 
-	# 	# print('!!!', matches.text)
-	# 	# print('!', matches.json())
+		print('now, blob exists:', blob.exists()) #remove #debug
 
-	# 	blob_name = 'blob_data.json'
+		if blob.exists():
+			blob_content = blob.download_blob().readall()
 
-	# 	blob_data = json.dumps(r_params, ensure_ascii=False)
+			print('blob:', blob, 'blob_content:', blob_content) #remove #debug
+			blob.delete_blob()
 
-	# 	# blob_block.upload_blob(name=blob_name, data=blob_data, overwrite=True, encoding='utf-8')
-	# 	blob_block.upload_blob(name=blob_name, data=blob_data, overwrite=True, encoding='utf-8')
+			matches = json.loads(blob_content)
+		else:
+			matches = []
+			thresh = 0.5
 
-	# 	# async def await_blob():
-	# 	# 	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
+			import synoynm as syn
 
-	# 	# 	async with blob:
-	# 	# 		exists = await blob.exists()
-
-	# 	# 		if exists:
-	# 	# 			blob_content = blob.download_blob()
-
-	# 	# 			print('blob:', blob, 'blob_content:', blob_content)
-	# 	# 			blob.delete_blob("data.json")
-
-	# 	# 			return blob_content
-	# 	# def get_blob():
-	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
-
-	print('sending request to azure backend...') #debug
-
-	socketio.sleep(30)
-
-	blob_tries = 1
-	while not blob.exists():
-		if blob_tries > 6: break
-		print(f'blob exists: {blob.exists()} (try #{blob_tries}).') #remove #debug
-		blob_tries += 1 #remove #debug
-		socketio.sleep(20)
-		continue
-
-	print('now, blob exists:', blob.exists()) #remove #debug
-
-	if blob.exists():
-		blob_content = blob.download_blob().readall()
-
-		print('blob:', blob, 'blob_content:', blob_content) #remove #debug
-		blob.delete_blob()
-
-		matches = json.loads(blob_content)
-	else:
-		matches = []
-		thresh = 0.5
-
-		import synoynm as syn
-
-		topic_dictionary = {}
-
-		for term in terms:
-			definitions = syn.word_scorer(term)
-			print('definitions:', definitions) #remove #debug
-			topic_dictionary[term] = definitions[0][0]
-
-		print('topic_dictionary:', topic_dictionary) #remove #debug
-
-		for song in songs_with_lyrics:
-			songLyrics = song['lyrics']
-
-			words = syn.prep_phrase(songLyrics)
-
-			matches_theme = False
+			topic_dictionary = {}
 
 			for term in terms:
-				if matches_theme: break
-				# vector_dists = nlp.distance(term, words)
-				# .sort() #sorts from lowest to highest
+				definitions = syn.word_scorer(term)
+				print('definitions:', definitions) #remove #debug
+				topic_dictionary[term] = definitions[0][0]
 
-				# print("vector_dists:", vector_dists) #remove #debug
-				sim_words = []
-				for word in words:
-					sim_score = nlp.similarity(term, word)
-					if sim_score >= thresh:
-						sim_words.append(word)
-						print(f"\nAdding '{song['name']}' by {song['artists'][0]} to playlist because it passes the similarity threshold with a score of {sim_score} and contains the keyword: '{word}'\n")
-						matches.append(song)
-						matches_theme = True
-						break
+			print('topic_dictionary:', topic_dictionary) #remove #debug
 
-				similarity_scores = nlp.similarity(term, words)
-				similarity_scores.sort(reverse=True)
-				print(f'top 3 similarity_scores for "{song["name"]}" with term "{term}":', similarity_scores[:3]) #remove #debug
+			for song in songs_with_lyrics:
+				songLyrics = song['lyrics']
 
-				if similarity_scores[0] >= thresh: print('\n!', song['name'], similarity_scores[0])
+				words = syn.prep_phrase(songLyrics)
 
-			# lyricMatches = syn.multi_topic_scorer(songLyrics, topic_dictionary, sim_thresh=0.8, return_hits=True)
+				matches_theme = False
 
-			# matches_theme = False
+				for term in terms:
+					if matches_theme: break
+					# vector_dists = nlp.distance(term, words)
+					# .sort() #sorts from lowest to highest
 
-			# for match in lyricMatches.values():
-			# 	if match[0] > 0:
-			# 		keywords = match[1]
-			# 		print(f"Adding {song['name']} by {song['artists'][0]} to playlist because it passes the similarity threshold with a score of {match[0]} and contains the keywords: {keywords}\n")
-			# 		matches_theme = True
-			# 		break
-			
-			# if matches_theme: matches.append(song) #TODO: have limit that complies with condition for stopping the program
+					# print("vector_dists:", vector_dists) #remove #debug
+					word_matches = []
+					for word in words:
+						sim_score = nlp.similarity(term, word)
+						if sim_score >= thresh:
+							word_matches.append(word)
+							print(f"\nAdding '{song['name']}' by {song['artists'][0]} to playlist because it passes the similarity threshold with a score of {sim_score} and contains the keyword: '{word}'\n")
+							matches.append(song)
+							matches_theme = True
+							break
 
+					similarity_scores = nlp.similarity(term, words)
+					similarity_scores.sort(reverse=True)
+					print(f'top 3 similarity_scores for "{song["name"]}" with term "{term}":', similarity_scores[:3]) #remove #debug
 
+					if similarity_scores[0] >= thresh: print('\n!', song['name'], similarity_scores[0])
 
-	# # async with blob:
-	# # 	exists = await blob.exists()
+		print('got matches.') #remove #debug
 
-	# # 	if exists:
-	# blob_content = blob.download_blob().readall()
+		with app.test_request_context():
+			connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
 
-	# print('blob:', blob, 'blob_content:', blob_content)
-	# blob.delete_blob()
-
-	# # return blob_content
-	# # async def await_blob():
-	# # 	blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
-
-	# # 	async with blob:
-	# # 		exists = await blob.exists()
-
-	# # 		if exists:
-	# # 			blob_content = blob.download_blob()
-
-	# # 			print('blob:', blob, 'blob_content:', blob_content)
-	# # 			blob.delete_blob("data.json")
-
-	# # 			return blob_content
-	
-	# # blob_content = get_blob()
-
-	# matches = json.loads(blob_content)
-
-	# # delete blob
-	# # song_data_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
-	# # song_data_client = song_data_service_client.get_container_client(container='song-data')
-	
-
-	
-
-
-
-	# # matches = requests.get(_AZFUNC_API_URL, params={'container_name': container_name, 'blob_name': blob_name})
-
-	# # Create a local directory to hold blob data
-	
-
-
-	# # def main(req: func.HttpRequest) -> func.HttpResponse:
-	# # 	message = f"songs: {songs_with_lyrics}, terms: {terms}, stopNum: {input_info['stopNum']}, stopCondition: {input_info['stopCondition']}, relevant_lyrics: {relevant_lyrics}"
-	# # 	return func.HttpResponse(message)
-	
-
-	print('got matches.') #remove #debug
-
-	with app.test_request_context():
-		connect_create_playlist = Thread(target=await_connection, kwargs={'ns': '/create-playlist', 'cb': start_matches_thread})
-
-		connect_create_playlist.start()
+			connect_create_playlist.start()
+    
+		break #finally, exit thread
 
 thread_joined = False
 def start_get_matches_thread():
@@ -459,6 +376,8 @@ def start_get_matches_thread():
 
 		get_matches_thread.join() #new #*
 		print('thread is done.')
+
+		thread_joined = False #new #check
 
 
 class BookshelfThread(Thread):
@@ -553,6 +472,10 @@ def bookshelf_start():
 
 	global bookshelf_thread
 
+	global def_display
+
+	def_display = 'none'
+
 	print('restarting bookshelf...') #remove #debug
 
 	if bookshelf_thread is None and spotify is not None and nlp is not None:
@@ -593,28 +516,41 @@ def load_nlp():
 	socketio.emit('new_status', {'status': status}, broadcast=True)
 
 
-def_display = 'none'
-
 @socketio.on('load_index') #TODO: change this to 'load-index' or something
 def load_index():
 	print('loaded index page')
+	# os._exit(0)
+
+	# socketio.stop()
+
+	print('loaded index page')
 	global def_display
 
-	def_display = 'none'
+	def_display = 'none' #remove #?
 
-	global sim_words
-	sim_words = []
+	# global sim_words #go back! #? #v
+	# sim_words = [] #^
 
 	index_page_event.set() #set it to stop any threads that might be running
 
+	# if index_page_event.is_set(): break #new #*
+
 	global matches
 	matches = None #for now
+
+	global get_matches_thread
+	get_matches_thread = None #reset #remove #?
 	# index_page_event.clear() #unset it
+
+	# raise RestartException('a message')
 
 
 @app.route('/', methods=['GET', 'POST'])
 def sign_in():
 	print('rendering index page.') #remove #debug
+
+	global def_display
+	# def_display = 'none'
 
 	global nlpThread
 
@@ -640,7 +576,7 @@ def sign_in():
 
 	global sim_words
 
-	sim_words = []
+	# sim_words = []
 
 	if not session.get('uuid'):
 		# Step 1. Visitor is unknown, give random ID
@@ -668,11 +604,17 @@ def sign_in():
 	global userPlaylists #new #*
 
 	userPlaylists = spotify.current_user_playlists(limit=50)['items']
+
+	print(type(userPlaylists)) #remove #debug
 	
 	if request.method == 'POST':
 		if nlpThread is not None and nlpThread.is_alive(): nlpThread.join() #*
 
 		if 'theme' in request.form: #TODO: and 'stopCondition' and request.form
+			sim_words = []
+
+			print('!', request.form.keys(), request.form.get('theme')) #remove #debug
+
 			status = 'Training model'
 
 			input_info['theme'] = request.form.get('theme')
@@ -697,9 +639,13 @@ def sign_in():
 
 			sim_words = get_similar_words(nlp, input_info['theme'], top=6)
 			
-			global def_display
+			# global def_display
 
 			def_display = 'block'
+
+			print('!')
+
+			socketio.emit('reload', {'def_display': 'block'})
 
 			def getSongs():
 				global songs
@@ -781,6 +727,9 @@ def sign_in():
 		
 			songsThread = Thread(target=getSongs)
 			songsThread = socketio.start_background_task(target=getSongs)
+
+			print('redirecting to "end" the form.')
+			return redirect(url_for('sign_in')) #redirect to "end" the form
 		else:
 			songsThread.join()
 			
@@ -797,10 +746,13 @@ def sign_in():
 			print('additional_terms:', additional_terms)
 
 			print('terms:', terms) #remove #debug
+			sim_words = [] #new #check
 
 			return redirect(url_for('create_playlist'))
 
 	current_time = time.localtime()
+
+	print('def_display:', def_display)
 
 	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], playlists=userPlaylists, current_time=f'{current_time.tm_hour}:{current_time.tm_min}', async_mode=socketio.async_mode)
 
@@ -836,7 +788,7 @@ def remove_playlists():
 
 			if len(playlist_occurences):
 				if len(playlist_occurences) > 1:
-					socketio.emit('delete_all', {'p_name': playlistName, 'playlists': playlist_occurences}, namespace='/remove', callback=delete_playlists, broadcast=True)
+					socketio.emit('query_delete_all', {'p_name': playlistName, 'playlists': playlist_occurences}, namespace='/remove', callback=delete_playlists, broadcast=True)
 
 					# await_response_thread = Thread(target=await_response)
 
@@ -862,8 +814,40 @@ def remove_playlists():
 	else: return render_template("remove.html", status=status, playlists=userPlaylists, async_mode=socketio.async_mode)
 
 
+
+@socketio.on_error_default
+def error_handler(e):
+	print('an error has occurred: ' + str(e))
+	print(isinstance(e, RestartException))
+
+	# if isinstance(e, RestartException): socketio.emit('reload', {'def_display': 'none'})
+
+	# global def_display
+
+	# def_display = 'none'
+
+	return render_template("index.html", status='redirected', sim_words=sim_words, def_display='none', theme=input_info['theme'], playlists=userPlaylists, current_time=f'', async_mode=socketio.async_mode)
+	# pass
+
+# @app.errorhandler(Exception)
+# def handle_exception(e):
+# 	if isinstance(e, RestartException):
+# 		print('restart exception!')
+# 		# return redirect('/')
+
+# 	return
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+	if isinstance(e, RestartException):
+		print('restart exception!')
+		# return redirect('/')
+
+	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], playlists=userPlaylists, current_time=f'', async_mode=socketio.async_mode)
+
 # Run application
 if __name__ == "__main__":
 	# socketio.run(app)
 	socketio.run(app, port=port)
+	# socketio.run(app, port=port, use_reloader=True)
 	# socketio.run(app, port=int(os.environ.get('PORT', 5000)), debug=True)
