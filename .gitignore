@@ -49,3 +49,7 @@ local/
 
 
 .cache
+
+uninstall.txt
+
+*.ipynb

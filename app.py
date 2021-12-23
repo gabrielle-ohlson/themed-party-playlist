@@ -25,8 +25,11 @@ import spotipy
 from github import Github #TODO: install
 from pymagnitude import *
 import boto3
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
+# from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 # from azure.storage.blob.aio import BlobClient
+
+from google.cloud import storage
+
 
 import themes
 # import topic
@@ -82,6 +85,27 @@ app.config['GITHUB_TOKEN']=environ.get('GITHUB_TOKEN')
 
 app.config['SPOTIPY_REDIRECT_URI']= 'http://127.0.0.1:5000/'
 
+
+# ------
+
+GOOGLE_SERVICE_ACCOUNT_INFO = environ.get('GOOGLE_SERVICE_ACCOUNT_INFO')
+
+app.config['GOOGLE_SERVICE_ACCOUNT_INFO'] = GOOGLE_SERVICE_ACCOUNT_INFO
+
+json_acct_info = json.loads(GOOGLE_SERVICE_ACCOUNT_INFO)
+
+client = storage.Client.from_service_account_info(
+	json_acct_info
+)
+
+input_blob = None
+
+google_input_bucket = client.get_bucket('topic-model-input')
+
+google_output_bucket = client.get_bucket('topic-model-output')
+
+# ------
+
 app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
 app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
 app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
@@ -93,17 +117,17 @@ AZURE_STORAGE_CONNECTION_STRING = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
 app.config['AZURE_STORAGE_CONNECTION_STRING'] = AZURE_STORAGE_CONNECTION_STRING
 
 # Create the BlobServiceClient object which will be used to create a container client
-blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING) #TODO: remove #?
+# blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING) #TODO: remove #?
 
 
 # Create a unique name for the container
 # container_name = str(uuid.uuid4())
-container_name = 'topic-data'
+# container_name = 'topic-data'
 
 # Create the container
 # container_client = blob_service_client.create_container(container_name)
 
-blob_block = ContainerClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name=container_name)
+# blob_block = ContainerClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name=container_name)
 
 
 AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID')
@@ -272,6 +296,25 @@ def get_matches():
 
 		print('client requested "find_matches". finding matches...', matches_thread, matches) #remove #debug
 
+		google_output_blob = google_output_bucket.get_blob('data.json')
+
+		print('1:', google_output_blob)
+
+		socketio.sleep(30)
+
+		print('after 30 sleep:', google_output_blob) #remove #debug
+
+		blob_tries = 1
+		while google_output_blob is None:
+			if blob_tries > 6: break #?
+			google_output_blob = google_output_bucket.get_blob('data.json')
+			print(google_output_blob is not None) #remove #debug
+			blob_tries += 1
+			socketio.sleep(10)
+
+		print('now:', google_output_blob) #remove #debug
+
+		'''
 		blob = BlobClient.from_connection_string(conn_str=AZURE_STORAGE_CONNECTION_STRING, container_name="song-data", blob_name="data.json")
 
 		print('sending request to azure backend...') #debug
@@ -298,7 +341,28 @@ def get_matches():
 			blob.delete_blob()
 
 			matches = json.loads(blob_content)
+		'''
+		if google_output_blob is not None:
+			global input_blob #new
+			input_blob.delete()
+
+			blob_content = google_output_blob.download_as_string()
+
+			print('blob_content:', blob_content) #remove #debug
+
+			matches = json.loads(blob_content)
+
+			google_output_blob.delete()
 		else:
+			# import papermill as pm
+
+			# pm.execute_notebook(
+			# 	'input.ipynb',
+			# 	'output.ipynb',
+			# 	parameters= {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics, 'threshold': 0.05}
+			# )
+
+
 			matches = []
 			thresh = 0.5
 
@@ -367,9 +431,15 @@ def start_get_matches_thread():
 
 		r_params = {'songs': songs_with_lyrics, 'terms': terms, 'stopNum': input_info['stopNum'], 'stopCondition': input_info['stopCondition'], 'relevant_lyrics': relevant_lyrics, 'threshold': 0.05}
 
-		blob_name = 'blob_data.json'
+		# blob_name = 'blob_data.json' #remove #*
 		blob_data = json.dumps(r_params, ensure_ascii=False)
-		blob_block.upload_blob(name=blob_name, data=blob_data, overwrite=True, encoding='utf-8')
+		# blob_block.upload_blob(name=blob_name, data=blob_data, overwrite=True, encoding='utf-8') #remove #*
+
+		global input_blob
+
+		input_blob = google_input_bucket.blob('input-data.json') #new #*
+
+		input_blob.upload_from_string(blob_data) #new #*
 
 		get_matches_thread = Thread(target=get_matches)
 		get_matches_thread.start() #current_app._get_current_object() #disconnect #is_connected
@@ -604,8 +674,6 @@ def sign_in():
 	global userPlaylists #new #*
 
 	userPlaylists = spotify.current_user_playlists(limit=50)['items']
-
-	print(type(userPlaylists)) #remove #debug
 	
 	if request.method == 'POST':
 		if nlpThread is not None and nlpThread.is_alive(): nlpThread.join() #*
@@ -742,8 +810,6 @@ def sign_in():
 					terms.append(w)
 
 			additional_terms = request.form.keys()
-
-			print('additional_terms:', additional_terms)
 
 			print('terms:', terms) #remove #debug
 			sim_words = [] #new #check
