@@ -40,3 +40,10 @@ aws/
 
 matchesWorker.py
 worker.py
+
+.ipynb_checkpoints/
+.cache
+local/
+local.settings.json
+*.ipynb
+uninstall.txt

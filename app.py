@@ -21,7 +21,8 @@ from io import StringIO
 import lyricsgenius
 import spotipy
 
-from github import Github #TODO: install
+# from github import Github #TODO: install
+import github
 from pymagnitude import *
 import boto3
 
@@ -102,9 +103,10 @@ genius = lyricsgenius.Genius(genius_token, timeout=15, retries=3, remove_section
 
 github_token = os.getenv('GITHUB_TOKEN')
 
-github = Github(github_token)
+github_client = github.GHClient(token=github_token)
+# github = Github(github_token)
 
-repo = github.get_user().get_repo('lyrics-storage')
+repo = github_client.get_user().get_repo('lyrics-storage')
 
 query_url = f"https://raw.githubusercontent.com/gabrielle-ohlson/lyrics-storage/main/"
 
