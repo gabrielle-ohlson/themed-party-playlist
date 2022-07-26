@@ -121,7 +121,7 @@
 	<button type="submit">Submit!</button>
 </form>
 <div id="def-container" style="display:{{ def_display }}">
-	<label for="def-form"><b>Related terms to use for '{{ theme }}':</b></label>
+	<label for="def-form"><b>Related terms to use for '{{ theme }}':</b></label> <!-- TODO: add 'select all' checkbox -->
 	<form name="def-form" action="{{url_for('sign_in')}}" method="post">
 		{% for w in sim_words: %}
 		<input type="checkbox" id="{{ w }}" name="{{ w }}" />

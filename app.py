@@ -30,6 +30,9 @@ import boto3
 
 from google.cloud import storage
 
+# from google.cloud import logging #remove
+
+# from google.cloud import error_reporting
 
 import themes
 # import topic
@@ -94,6 +97,8 @@ app.config['GOOGLE_SERVICE_ACCOUNT_INFO'] = GOOGLE_SERVICE_ACCOUNT_INFO
 
 json_acct_info = json.loads(GOOGLE_SERVICE_ACCOUNT_INFO)
 
+# ------
+
 client = storage.Client.from_service_account_info(
 	json_acct_info
 )
@@ -104,6 +109,19 @@ google_input_bucket = client.get_bucket('topic-model-input')
 
 google_output_bucket = client.get_bucket('topic-model-output')
 
+# ------
+
+# google_log_client = logging.Client.from_service_account_info(
+# 	json_acct_info
+# ) #remove
+
+# google_logger = google_log_client.setup_logging(log_level=logging.ERROR) #remove
+
+# google_error_client = error_reporting.Client.from_service_account_info(
+# 	json_acct_info
+# )
+
+# google_error_client.report('found an error!')
 # ------
 
 app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
@@ -298,19 +316,25 @@ def get_matches():
 
 		google_output_blob = google_output_bucket.get_blob('data.json')
 
-		print('1:', google_output_blob)
+		# socketio.sleep(30)
 
-		socketio.sleep(30)
-
-		print('after 30 sleep:', google_output_blob) #remove #debug
+		# print('after 30 sleep:', google_output_blob) #remove #debug
 
 		blob_tries = 1
-		while google_output_blob is None:
-			if blob_tries > 6: break #?
+
+		print(f'request completed: {google_output_blob is not None} (try #{blob_tries})') #remove #debug
+
+		google_func_time = 18
+		socketio.sleep(google_func_time) #TODO: make shorter time #?
+
+		while google_output_blob is None: # 9 = 90
+			# if blob_tries > 6:
+			if google_func_time >= 90: break #?
 			google_output_blob = google_output_bucket.get_blob('data.json')
-			print(google_output_blob is not None) #remove #debug
 			blob_tries += 1
-			socketio.sleep(10)
+			print(f'request completed: {google_output_blob is not None} (try #{blob_tries})') #remove #debug
+			socketio.sleep(9) #TODO: make shorter time #?
+			google_func_time += 9
 
 		print('now:', google_output_blob) #remove #debug
 
@@ -348,12 +372,11 @@ def get_matches():
 
 			blob_content = google_output_blob.download_as_string()
 
-			print('blob_content:', blob_content) #remove #debug
-
 			matches = json.loads(blob_content)
 
 			google_output_blob.delete()
 		else:
+			print('function timed out. TODO: report and detect error.')
 			# import papermill as pm
 
 			# pm.execute_notebook(
@@ -804,8 +827,7 @@ def sign_in():
 			status = 'Ready to create playlist'
 
 			for w in request.form.keys():
-				print(request.form[w], request.form.keys()) #remove #debug
-				if request.form[w] != 'None':
+				if request.form[w] != 'None': #?
 					# topic_dictionary[w] = request.form[w]
 					terms.append(w)
 
@@ -818,22 +840,18 @@ def sign_in():
 
 	current_time = time.localtime()
 
-	print('def_display:', def_display)
-
 	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], playlists=userPlaylists, current_time=f'{current_time.tm_hour}:{current_time.tm_min}', async_mode=socketio.async_mode)
 
 
 def await_response():
 	while True:
 		socketio.on_event('response', namespace='/remove')
-		socketio.sleep()
-
+		socketio.sleep(1)
 
 
 def delete_playlists(playlists):
 	for playlist in playlists:
 		spotify.current_user_unfollow_playlist(playlist['id'])
-
 
 
 @app.route('/remove', methods=['GET', 'POST'])
@@ -903,6 +921,7 @@ def error_handler(e):
 
 # 	return
 
+'''
 @app.errorhandler(Exception)
 def handle_exception(e):
 	if isinstance(e, RestartException):
@@ -910,6 +929,7 @@ def handle_exception(e):
 		# return redirect('/')
 
 	return render_template("index.html", status=status, sim_words=sim_words, def_display=def_display, theme=input_info['theme'], playlists=userPlaylists, current_time=f'', async_mode=socketio.async_mode)
+'''
 
 # Run application
 if __name__ == "__main__":
