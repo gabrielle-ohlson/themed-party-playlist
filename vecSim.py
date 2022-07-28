@@ -19,11 +19,11 @@ punctuation = [',' '.', '!', '?', '(', ')', ':', '"']
 
 
 def similarity(nlp, sentences, theme, thresh=0.3):
-  print(sentences) #remove #debug
   matches = []
-
-  for idx, sent in enumerate(sentences):
-    print(f'sentence {idx}/{len(sentences)}')
+  
+  for sent in sentences:
+  # for idx, sent in enumerate(sentences):
+    # print(f'sentence {idx}/{len(sentences)}')
     sent = ''.join(c for c in sent if c not in ',.?:!/:;()') # 0123456789
 
     words = sent.split(' ')
@@ -49,14 +49,11 @@ def similarity(nlp, sentences, theme, thresh=0.3):
 
   matches.sort(key=lambda x: x[1], reverse=True)
 
-  print('checkpt2')
-
   ct_20p = int(0.2*len(matches))
 
-  print(ct_20p)
   top_20p = matches[:ct_20p]
 
-  print(top_20p, '!') #remove #debug
+  print('ct_20p top_20\% ({ct_20p} words)', top_20p, '!') #remove #debug
 
   score = sum([m[1] for m in top_20p])/ct_20p
 

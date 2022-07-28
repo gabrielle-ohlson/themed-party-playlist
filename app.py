@@ -16,6 +16,8 @@ import os
 import re
 import time
 
+# import psutil #remove
+
 import boto3
 
 import lyricsgenius
@@ -224,6 +226,9 @@ class BookshelfThread(Thread):
 					socketio.emit('skip_song', {'song_count': song_count}, namespace='/create-playlist', broadcast=True)
 			
 			def get_matches():
+				global songs
+				songs = [] #reset #?
+
 				global matches_thread
 
 				if matches_thread is None:
@@ -326,40 +331,66 @@ status = 'Loading NLP model'
 nlpThread = None
 songsThread = None
 
-def fetch_s3_file(filename): # fetch_s3_file took: 209.01009821891785
-	fp = f'{filename}'
-	# os.makedirs(fp, exist_ok=True)  
-	with open(filename, 'wb') as f:
+from tempfile import NamedTemporaryFile #*
+
+def fetch_s3_file(filename, save_as): # fetch_s3_file took: 209.01009821891785
+	# fp = f'{filename}'
+	# os.makedirs(fp, exist_ok=True) 
+	# if temp:
+	# 	f = NamedTemporaryFile(suffix='.magnitude')
+	# 	fp = f.name
+	# else: f = open(filename, 'wb')
+
+	# s3.download_fileobj(S3_BUCKET, filename, f)
+
+	# if not os.path.exists('save_as'): os.cre
+
+	with open(save_as, 'wb+') as f:
 		s3.download_fileobj(S3_BUCKET, filename, f)
-	return fp #?
+	# return fp #?
+
+
+
 
 
 def load_nlp():
+	# print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2, 'MB') #remove
 	print('loading nlp...') #debug
 	global nlp
 
-	# start_time = time.time()
+	if nlp is None:
+		start_time = time.perf_counter() #remove #debug
 
-	fetch_s3_file('GoogleNews-vectors-negative300.magnitude')
+		fetch_s3_file('word2vec-light.magnitude', 'word2vec-light.magnitude')
+		nlp = Magnitude('word2vec-light.magnitude')
+		# fetch_s3_file('glove_nlp', 'glove_nlp.magnitude')
 
-	# print('fetch_s3_file took:', time.time()-start_time)
+		# with NamedTemporaryFile(suffix='.magnitude') as f:
+		# 	s3.download_fileobj(S3_BUCKET, 'glove_nlp', f)
+		# 	print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2, 'MB')
+		# nlp = Magnitude('glove_nlp.magnitude')
 
-	# start_time = time.time()
+		# nlp = Magnitude()
 
-	# s3.download_file(S3_BUCKET, 'GoogleNews-vectors-negative300.magnitude', 'GoogleNews-vectors-negative300.magnitude') # download_file took: 214.92814350128174
+		# print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2, 'MB') #remove
+		# url = 'http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude'
 
-	# print('download_file:', time.time()-start_time)
+		# os.unlink('glove_nlp.magnitude')
 
-	# nlp = Magnitude('http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude', stream=True) #TODO: maybe switch back to lite #TODO: convert '_' to '-'
+		process_time = time.perf_counter()-start_time
+		
+		print('took:', int(process_time/60), 'm', process_time%60, 's') #remove #debug
 
-	nlp = Magnitude('GoogleNews-vectors-negative300.magnitude')
-	
-	print('done loading nlp.') #debug
-	global status
-	
-	# status = 'Getting songs'
-	status = 'Ready'
-	socketio.emit('new_status', {'status': status}, broadcast=True)
+		# nlp = Magnitude('http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude', stream=True) #TODO: maybe switch back to lite #TODO: convert '_' to '-'
+
+		# nlp = Magnitude('GoogleNews-vectors-negative300.magnitude')
+		
+		print('done loading nlp.') #debug
+		global status
+		
+		# status = 'Getting songs'
+		status = 'Ready'
+		socketio.emit('new_status', {'status': status}, broadcast=True)
 
 
 def_display = 'none'
