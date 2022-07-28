@@ -2,7 +2,7 @@ import vecSim
 
 
 def top_lyrics(nlp, songs, terms, stopNum=None, stopCondition=None):
-	print('getting top lyrics!!!!!!!!!!!!') #remove
+	print('getting top lyrics!!!!!!!!!!!!', len(songs)) #remove
 
 	song_names = [song['name'] for song in songs]
 	lyrics = [song['lyrics'] for song in songs]
@@ -10,6 +10,7 @@ def top_lyrics(nlp, songs, terms, stopNum=None, stopCondition=None):
 	matches = []
 
 	for i, lyric in enumerate(lyrics):
+		print(song_names[i]) #remove #debug
 		sentences = lyric.splitlines()
 
 		avg_sim, top_matches = vecSim.similarity(nlp, sentences, terms)

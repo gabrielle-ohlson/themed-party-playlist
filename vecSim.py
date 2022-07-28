@@ -19,6 +19,7 @@ punctuation = [',' '.', '!', '?', '(', ')', ':', '"']
 
 
 def similarity(nlp, sentences, theme, thresh=0.3):
+  print(sentences) #remove #debug
   matches = []
 
   for sent in sentences:
@@ -40,7 +41,11 @@ def similarity(nlp, sentences, theme, thresh=0.3):
       except:
         lem_words.append(word)
 
+    print('checkpt')
+
     sim = nlp.similarity(theme, lem_words)
+
+    print('sim:', sim)
 
     matches.extend([(word, sim[i].item()) for i, word in enumerate(words)]) #new # if (word, sim[i].item()) not in matches
 

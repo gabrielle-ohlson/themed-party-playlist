@@ -8,7 +8,6 @@ monkey.patch_all()
 
 from flask import Flask, session, request, redirect, render_template, url_for, current_app #, copy_current_request_context
 from flask_session import Session
-
 from flask_socketio import SocketIO
 from threading import Thread, Event
 
@@ -17,11 +16,13 @@ import os
 import re
 import time
 
+import boto3
 
 import lyricsgenius
 import spotipy
 
-from pymagnitude import *
+from pymagnitudelight import *
+# from pymagnitude import *
 
 from os import environ, path
 from dotenv import load_dotenv
@@ -64,7 +65,16 @@ app.config['SPOTIPY_CLIENT_SECRET']=environ.get('SPOTIPY_CLIENT_SECRET')
 app.config['SPOTIPY_REDIRECT_URI']= 'http://127.0.0.1:5000/'
 
 app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
+app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
+app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
 
+AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID')
+
+AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY')
+
+s3 = boto3.client('s3', region_name='us-west-1')
+
+S3_BUCKET = os.environ.get('S3_BUCKET')
 
 if (os.environ.get('PORT')):
 	port = os.environ.get('PORT')
@@ -90,6 +100,8 @@ socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=[
 connected_clients = []
 
 #update_bookshelf Generator Thread
+bookshelf_task = None
+
 bookshelf_thread = None
 
 thread_stop_event = Event()
@@ -289,13 +301,13 @@ class MatchesThread(Thread):
 		self.update_bookshelf_with_matches()
 
 
-@socketio.on('bookshelf', namespace='/create-playlist')
+# @socketio.on('bookshelf', namespace='/create-playlist') #beep
 def bookshelf_start():
 	index_page_event.clear() #reset
 
 	global bookshelf_thread
 
-	print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread, 'namespace is:', request.namespace) #remove #debug
+	# print('restarting bookshelf...\nbookshelf_thread is:', bookshelf_thread, 'namespace is:', request.namespace) #remove #debug
 
 	if bookshelf_thread is None and spotify is not None and nlp is not None:
 		print('starting BookshelfThread...') #debug
@@ -322,7 +334,11 @@ def load_nlp():
 	global nlp
 
 	# nlp = Magnitude('static/GoogleNews-vectors-negative300.magnitude') #TODO: maybe switch back to lite #TODO: convert '_' to '-'
-	nlp = Magnitude('http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude', stream=True) #TODO: maybe switch back to lite #TODO: convert '_' to '-'
+	s3.download_file('themed-party-playlist', 'GoogleNews-vectors-negative300.magnitude', 'GoogleNews-vectors-negative300.magnitude')
+	# nlp = Magnitude('s3://themed-party-playlist/GoogleNews-vectors-negative300.magnitude')
+	# nlp = Magnitude('http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude', stream=True) #TODO: maybe switch back to lite #TODO: convert '_' to '-'
+
+	nlp = Magnitude('GoogleNews-vectors-negative300.magnitude')
 	
 	print('done loading nlp.') #debug
 	global status
@@ -415,8 +431,6 @@ def sign_in():
 			input_info['saveAs'] = request.form.get('saveAs')
 
 			current_time = time.mktime(time.localtime())
-			print('current_time:', current_time) #remove #debug
-			print(time.localtime()) #remove #debug
 
 			input_info['trainTime'] = int(request.form.get('trainTime'))*60 #convert to seconds
 
@@ -507,6 +521,10 @@ def sign_in():
 			songsThread = socketio.start_background_task(target=getSongs)
 		else:
 			songsThread.join()
+
+			global bookshelf_task
+
+			bookshelf_task = socketio.start_background_task(target=bookshelf_start)
 			
 			status = 'Ready to create playlist'
 

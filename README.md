@@ -39,3 +39,12 @@ It is recommended that you create a [virtual environment](https://packaging.pyth
 5. After the NLP models are loaded and you've hit submit, you will be presented with related terms to your theme. You can opt to include a number of these synonyms in the data used for finding songs that match your theme by checking the given terms. Submit when you're done.
 6. You will be redirected to the `create-playlist` page. Watch as the albums are removed/added to the bookshelf in the interactive visualization as your playlist is being built!
 7. Finally, when the model is done, you will see the header: `Playlist created` and the record in the interface will stop spinning. Check your spotify account to see the generated playlist.
+
+## Setup Notes
+
+Dependencies are manage with an anaconda virtual environment and the pypi package [oip-tools](https://pypi.org/project/pip-tools/).  After creating a 'requirements.in' file, we run the following commands:
+```bash
+$ pip-compile requirements.in #creates a requirements.txt file
+
+$ pip-sync #updates virtual env accordingly (installing all packages listed in requirements and uninstall all others)
+```
