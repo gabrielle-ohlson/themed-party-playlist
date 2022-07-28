@@ -354,6 +354,7 @@ def sign_in():
 	
 	global nlp_task
 	if nlp is None:
+		print('nlp not loaded yet') #debug
 		nlp_task = socketio.start_background_task(target=load_nlp)
 
 	global bookshelf_thread
@@ -397,6 +398,7 @@ def sign_in():
 	userPlaylists = spotify.current_user_playlists(limit=50)['items']
 	
 	if request.method == 'POST':
+		print('nlp is', nlp) #remove #debug
 		if nlp is None: nlp_task.join() #new #*
 		status = 'Getting songs' #new *
 		socketio.emit('new_status', {'status': status}, broadcast=True) #new #*
@@ -430,7 +432,7 @@ def sign_in():
 
 			def_display = 'block'
 
-			def getSongs():
+			def getSongs(): #TODO: figure out why this is running too song
 				global songs
 
 				songs = [] #reset
