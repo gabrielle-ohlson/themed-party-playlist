@@ -1,4 +1,6 @@
 # backend for web app
+# import asyncio
+
 async_mode = 'gevent'
 
 from gevent import monkey
@@ -13,40 +15,25 @@ from threading import Thread, Event
 import uuid
 import os
 import re
-import requests
 import time
-import sys
-from io import StringIO
+
 
 import lyricsgenius
 import spotipy
 
-# from github import Github #TODO: install
-import github
 from pymagnitude import *
-import boto3
+
+from os import environ, path
+from dotenv import load_dotenv
 
 import themes
 import topic
 from sim import get_similar_words
 
-# import base64
-import csv
+# ------------------
 
-maxInt = sys.maxsize
-
-while True:
-	# decrease the maxInt value by factor 10 
-	# as long as the OverflowError occurs.
-	try:
-		csv.field_size_limit(maxInt)
-		break
-	except OverflowError:
-		maxInt = int(maxInt/10)
-
-
-# import gensim.downloader as gensim_api
 nlp = None
+nlp_task = None
 
 # We must now create our app, which I will store in a variable called `app`:
 app = Flask(__name__, static_url_path='/static')
@@ -55,8 +42,6 @@ app.config['SECRET_KEY'] = os.urandom(64)
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = './.flask_session'
 
-from os import environ, path
-from dotenv import load_dotenv
 
 basedir = path.abspath(path.dirname(__file__))
 load_dotenv(path.join(basedir, '.env'))
@@ -76,21 +61,10 @@ app.config['SPOTIPY_CLIENT_ID']=environ.get('SPOTIPY_CLIENT_ID')
 
 app.config['SPOTIPY_CLIENT_SECRET']=environ.get('SPOTIPY_CLIENT_SECRET')
 
-app.config['GITHUB_TOKEN']=environ.get('GITHUB_TOKEN')
-
 app.config['SPOTIPY_REDIRECT_URI']= 'http://127.0.0.1:5000/'
 
 app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
-app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
-app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
 
-AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID')
-
-AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY')
-
-s3 = boto3.client('s3', region_name='us-west-1')
-
-S3_BUCKET = os.environ.get('S3_BUCKET')
 
 if (os.environ.get('PORT')):
 	port = os.environ.get('PORT')
@@ -101,28 +75,7 @@ genius_token = os.getenv('GENIUS_TOKEN')
 
 genius = lyricsgenius.Genius(genius_token, timeout=15, retries=3, remove_section_headers=True)  # access token
 
-github_token = os.getenv('GITHUB_TOKEN')
 
-github_client = github.GHClient(token=github_token)
-# github = Github(github_token)
-
-repo = github_client.get_user().get_repo('lyrics-storage')
-
-query_url = f"https://raw.githubusercontent.com/gabrielle-ohlson/lyrics-storage/main/"
-
-def get_file(filename):
-	try:
-		r = requests.get(query_url+filename)
-		r.raise_for_status()
-
-		file_content = r.text
-	except:
-		return False
-
-	return file_content
-
-
-# socketio = SocketIO(app, async_mode=None, cors_allowed_origins="*")
 socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=[
 	'http://localhost:5000', 'https://localhost:5000',
 	'https://themed-party-playlist.herokuapp.com', 'https://themed-party-playlist.herokuapp.com/',
@@ -132,6 +85,7 @@ socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins=[
 	'http://127.0.0.1:5000', 'http://127.0.0.1:5000/create-playlist', 
 	'https://127.0.0.1:5000', 'https://127.0.0.1:5000/create-playlist',
 	'http://0.0.0.0:5000', 'http://0.0.0.0:5000/create-playlist', 'http://127.0.0.1:5000/'])
+
 
 connected_clients = []
 
@@ -239,14 +193,13 @@ class BookshelfThread(Thread):
 		while not thread_stop_event.is_set():
 			song_count = len(songs)
 			for song in songs:
-				print(index_page_event.is_set()) #remove #debug
-
 				if index_page_event.is_set(): break #new #*
 
 				song_result = genius.search_song(song['name'], song['artists'][0])
 
 				if song_result is not None:
-					song['lyrics'] = f'{song["name"]}\n' + song_result.lyrics
+					lyrics = re.sub(r'\d+(Embed)', '', song_result.lyrics)
+					song['lyrics'] = f'{song["name"]}\n' + lyrics
 					songs_with_lyrics.append(song)
 
 					album = song['album_art']
@@ -266,7 +219,7 @@ class BookshelfThread(Thread):
 					thread_stop_event.clear()
 
 					global matches
-					matches = topic.top_lyrics(songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition'], relevant_lyrics=relevant_lyrics) # 210000 = 3.5 minutes (average song length)
+					matches = topic.top_lyrics(nlp, songs_with_lyrics, terms, stopNum=input_info['stopNum'], stopCondition=input_info['stopCondition']) # 210000 = 3.5 minutes (average song length)
 
 					print('got matches.') #remove #debug
 					
@@ -309,6 +262,9 @@ class MatchesThread(Thread):
 				if index_page_event.is_set(): break #new #*
 
 				if song in matches:
+					el_id = song['name'].replace(' ', '-')
+					socketio.emit('keep_album', {'id': el_id, 'name': song['name'], 'keywords': song['keywords']}, namespace='/create-playlist', broadcast=True)
+
 					print(f'song {song["name"]} is a match.')
 					subSongs.append(song['id'])
 
@@ -360,22 +316,19 @@ nlpThread = None
 songsThread = None
 
 
+
 def load_nlp():
 	print('loading nlp...') #debug
 	global nlp
-	while True:
-		if nlp is not None: break
-		socketio.sleep(1)
 
-		s3.download_file('themed-party-playlist', 'glove_nlp', 'glove.6B.300d.magnitude')
-
-		nlp = Magnitude('glove.6B.300d.magnitude')
-
+	# nlp = Magnitude('static/GoogleNews-vectors-negative300.magnitude') #TODO: maybe switch back to lite #TODO: convert '_' to '-'
+	nlp = Magnitude('http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude', stream=True) #TODO: maybe switch back to lite #TODO: convert '_' to '-'
 	
 	print('done loading nlp.') #debug
 	global status
 	
-	status = 'Getting songs'
+	# status = 'Getting songs'
+	status = 'Ready'
 	socketio.emit('new_status', {'status': status}, broadcast=True)
 
 
@@ -393,28 +346,21 @@ def load_index():
 
 	index_page_event.set() #set it to stop any threads that might be running
 
-	# index_page_event.clear() #unset it
 
 
 @app.route('/', methods=['GET', 'POST'])
 def sign_in():
 	print('rendering index page.') #remove #debug
-
-	global nlpThread
-
-	if nlpThread is None:
-		nlpThread = Thread(target=load_nlp)
-		nlpThread.start()
+	
+	global nlp_task
+	if nlp is None:
+		nlp_task = socketio.start_background_task(target=load_nlp)
 
 	global bookshelf_thread
 	global matches_thread
 
 	bookshelf_thread = None #reset
 	matches_thread = None #reset
-
-	# index_page_event.set() #set it to stop any threads that might be running
-
-	# index_page_event.clear() #unset it
 
 	thread_stop_event.clear() #unset it
 	songs_thread_stop_event.clear() #unset it
@@ -451,7 +397,9 @@ def sign_in():
 	userPlaylists = spotify.current_user_playlists(limit=50)['items']
 	
 	if request.method == 'POST':
-		if nlpThread is not None and nlpThread.is_alive(): nlpThread.join() #*
+		if nlp is None: nlp_task.join() #new #*
+		status = 'Getting songs' #new *
+		socketio.emit('new_status', {'status': status}, broadcast=True) #new #*
 
 		if 'theme' in request.form: #TODO: and 'stopCondition' and request.form
 			status = 'Training model'
@@ -496,23 +444,19 @@ def sign_in():
 
 					theme = input_info["theme"]
 
-					csv_file = get_file(f'{theme}.csv')
-
-					if csv_file: # import io # io.StringIO(csv_file) #StringIo
-						csv_reader = csv.DictReader(StringIO(csv_file), fieldnames=['name', 'artist', 'lyrics'])
-
-						for row in csv_reader:
-							relevant_lyrics.append(row)
-					else:
+					if input_info['method'] == 'genius': #TODO: limit this to like... 100 or something
 						timeout_start = time.time()
 
-						f = 'name,artist,lyrics'
+						# max_songs = 250
+						max_songs = 0 # TODO: edit and have this for method of genius
+
+						# f = 'name,artist,lyrics'
 
 						page = 1
 						while True:
-							if time.time() > (timeout_start + input_info['trainTime']) or len(relevant_lyrics) >= 250: break #new limit (1000)
+							current_time = time.time()
+							if current_time > (timeout_start + input_info['trainTime']) or len(relevant_lyrics) >= max_songs: break #new limit (1000)
 
-							print('page:', page, 'so far, retrieved', len(relevant_lyrics), 'lyrics') #remove #debug
 							term_lyrics = genius.search_lyrics(theme, per_page=20, page=page)
 
 							if not len(term_lyrics['sections'][0]['hits']): break
@@ -533,13 +477,10 @@ def sign_in():
 
 									relevant_lyrics.append(song_info)
 
-									f += f'\n{song_info["name"]},{song_info["artist"]},"{song_info["lyrics"]}"'
+							print(f'page: {page}. so far, retrieved ({len(relevant_lyrics)}/{max_songs}) lyrics ({current_time-timeout_start} elapsed)') #remove #debug
 
 							page += 1
 
-						github_file = repo.create_file(f'{theme}.csv', 'create_file via PyGithub', f)
-
-					if input_info['method'] == 'genius': #TODO: limit this to like... 100 or something
 						for song in relevant_lyrics[:100]:
 							results = spotify.search(q=f"artist:{song['artist']} track:{song['name']}", type='track', limit=1)['tracks']
 
@@ -567,8 +508,6 @@ def sign_in():
 			
 			status = 'Ready to create playlist'
 
-			print('terms:', terms) #remove #debug
-
 			return redirect(url_for('create_playlist'))
 
 	current_time = time.localtime()
@@ -578,6 +517,4 @@ def sign_in():
 
 # Run application
 if __name__ == "__main__":
-	# socketio.run(app)
 	socketio.run(app, port=port)
-	# socketio.run(app, port=int(os.environ.get('PORT', 5000)), debug=True)

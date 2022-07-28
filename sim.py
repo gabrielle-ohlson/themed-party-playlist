@@ -8,3 +8,6 @@ def get_similar_words(nlp, word, top=30): #TODO: preprocess and np.unique
 	
 	print('similar words:', list(set(lst_out))) #remove #debug
 	return list(set(lst_out))
+
+
+

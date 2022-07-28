@@ -81,7 +81,7 @@
 		/* flex-shrink: 3; */
 		width: 11.9vh;
 		height:11.9vh;
-		cursor: pointer;
+		/* cursor: pointer; */
 		/* width: 30%;
 		height:16%; */
 		/* width: 2px; */
@@ -200,17 +200,34 @@
 		/* 100%{opacity:0; transform: translateY(110vh)} */
 	}
 
-	#lyrics-container {
+	#lyrics-container, #lyrics-container-overlay {
 		display: none;
 		height: 100vh;
 		width: 100vw;
 		position: absolute;
 		top: 0;
 		left: 0;
+		pointer-events: none;
 	}
 
-	#close-button {
+	.fading {
+		animation: fadeout 4s;
+	}
+	
 
+	@keyframes fadeout {
+		/* from {
+			opacity: 1;
+			color: transparent;
+			text-shadow: 0px 0px #fff;;
+		}
+		to {
+			opacity: initial;
+			color: #fff;
+			text-shadow: none;
+		} */
+    from { opacity: 1; }
+    to   { opacity: 0; }
 	}
 
 </style>
@@ -229,6 +246,7 @@
 <div id="carousel-container"></div>
 </div>
 <div id="lyrics-container"></div>
+<div id="lyrics-container-overlay"></div>
 <script>
 
 	var socket = io.connect(location.href);
@@ -328,6 +346,7 @@
 
 	let carouselContainer = document.getElementById('carousel-container');
 
+	let lyricsContainerOverlay = document.getElementById('lyrics-container-overlay');
 	let lyricsContainer = document.getElementById('lyrics-container');
 
 	let new_bookshelf = false;
@@ -347,9 +366,36 @@
 		album_img.src = data.album;
 		album_img.dataset.lyrics = data.lyrics; //new
 
-		album_img.onclick = function() {
-			lyricsContainer.innerText = data.lyrics; //just need this //?
+		album_img.onmouseover = function() {
+			lyricsContainer.innerHTML = this.dataset.lyricsHTML; //just need this //?
+			lyricsContainer.style.display = 'block'; //TODO: deal with this
+			lyricsContainer.style.zIndex = '10';
+
+			// lyricsContainer.classList.add('fading');
+
+			lyricsContainerOverlay.innerHTML = this.dataset.lyrics;
+			lyricsContainerOverlay.style.display = 'block'; //TODO: deal with this
+			lyricsContainerOverlay.style.zIndex = '9';
+			lyricsContainerOverlay.classList.add('fading');
 			// lyricsContainer.style.display = 'block'; //TODO: deal with this
+			// lyricsContainer.innerText = data.lyrics; //just need this //?
+			
+
+			window.setTimeout(() => {
+				// lyricsContainer.classList.remove('fading');
+				lyricsContainerOverlay.classList.remove('fading');
+				lyricsContainerOverlay.innerHTML = '';
+				lyricsContainerOverlay.style.display = 'none';
+				lyricsContainerOverlay.style.zIndex = '-2';
+			}, 4000); // 4 seconds
+		}
+
+		album_img.onmouseleave = function() {
+			lyricsContainer.innerHTML = ''; //just need this //?
+			// lyricsContainer.style.display = 'block'; //TODO: deal with this
+			// lyricsContainer.innerText = data.lyrics; //just need this //?
+			lyricsContainer.style.display = 'none'; //TODO: deal with this
+			// lyricsContainer.style.zIndex = '-1';
 		}
 
 		bookshelf.appendChild(album_img);
@@ -464,6 +510,51 @@
 
 		randomFall(album2remove);
 	});
+
+	socket.on('keep_album', function(data, cb) {
+		let album = document.getElementById(data.id);
+		// let bookshelves = document.querySelectorAll('.bookshelf');
+		// for (let b=0; b < bookshelves.length; ++b) {
+		// 	if (bookshelves[b] == album2remove.parentElement) {
+		// 		bookshelves[b].style.display = 'flex';
+		// 		current_bookshelf_idx = b;
+		// 	} else bookshelves[b].style.display = 'none';
+		// }
+		// bookshelves.forEach(el => {
+		// 	el.style.display = 'none';
+		// });
+		let song_name = data.name;
+		let keywords = {};
+		for (let info of data.keywords) {
+			keywords[info[0]] = info[1];
+		}
+
+		console.log(song_name, keywords);
+
+		if (!album.dataset.lyricsHTML) {
+			let lyricsHTML = '<span>';
+
+			console.log(album.dataset.lyrics);
+
+			let lyrics = album.dataset.lyrics.split(' ');
+
+			for (let word of lyrics) {
+				if (keywords[word]) console.log(word, word in keywords, keywords[word]);
+				let opacity = (word in keywords ? keywords[word] : 0); 
+				lyricsHTML += `<span style="opacity:${opacity}">${word}</span> `;
+			}
+
+			lyricsHTML += '</span>';
+
+			console.log(lyricsHTML);
+
+			album.dataset.lyrics = `<span>${lyrics.join(' ')}</span>` ; //new
+
+			album.dataset.lyricsHTML = lyricsHTML; //new
+		}
+		// album.alt = `${song_name}:\nkeywords: ${keywords}`;
+	});
+
 
 	socket.on('done', function(data, cb) {
 		songDesc.innerHTML = `Done.<br>Total songs: ${data.song_count}`;
