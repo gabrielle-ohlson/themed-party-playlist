@@ -367,7 +367,7 @@
 		album_img.dataset.lyrics = data.lyrics; //new
 
 		album_img.onmouseover = function() {
-			lyricsContainer.innerHTML = this.dataset.lyricsHTML; //just need this //?
+			if (this.dataset.lyricsHTML) lyricsContainer.innerHTML = this.dataset.lyricsHTML; //just need this //?
 			lyricsContainer.style.display = 'block'; //TODO: deal with this
 			lyricsContainer.style.zIndex = '10';
 

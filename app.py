@@ -326,15 +326,30 @@ status = 'Loading NLP model'
 nlpThread = None
 songsThread = None
 
+def fetch_s3_file(filename): # fetch_s3_file took: 209.01009821891785
+	fp = f'{filename}'
+	# os.makedirs(fp, exist_ok=True)  
+	with open(filename, 'wb') as f:
+		s3.download_fileobj(S3_BUCKET, filename, f)
+	return fp #?
 
 
 def load_nlp():
 	print('loading nlp...') #debug
 	global nlp
 
-	# nlp = Magnitude('static/GoogleNews-vectors-negative300.magnitude') #TODO: maybe switch back to lite #TODO: convert '_' to '-'
-	s3.download_file('themed-party-playlist', 'GoogleNews-vectors-negative300.magnitude', 'GoogleNews-vectors-negative300.magnitude')
-	# nlp = Magnitude('s3://themed-party-playlist/GoogleNews-vectors-negative300.magnitude')
+	# start_time = time.time()
+
+	fetch_s3_file('GoogleNews-vectors-negative300.magnitude')
+
+	# print('fetch_s3_file took:', time.time()-start_time)
+
+	# start_time = time.time()
+
+	# s3.download_file(S3_BUCKET, 'GoogleNews-vectors-negative300.magnitude', 'GoogleNews-vectors-negative300.magnitude') # download_file took: 214.92814350128174
+
+	# print('download_file:', time.time()-start_time)
+
 	# nlp = Magnitude('http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude', stream=True) #TODO: maybe switch back to lite #TODO: convert '_' to '-'
 
 	nlp = Magnitude('GoogleNews-vectors-negative300.magnitude')
