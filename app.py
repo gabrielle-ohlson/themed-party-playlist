@@ -16,13 +16,13 @@ import os
 import re
 import time
 
-# import boto3
+import boto3
 
 import lyricsgenius
 import spotipy
 
-# from pymagnitudelight import *
-from pymagnitude import *
+from pymagnitudelight import *
+# from pymagnitude import *
 
 from os import environ, path
 from dotenv import load_dotenv
@@ -64,16 +64,16 @@ app.config['SPOTIPY_CLIENT_SECRET']=environ.get('SPOTIPY_CLIENT_SECRET')
 
 app.config['SPOTIPY_REDIRECT_URI']= 'http://127.0.0.1:5000/'
 
-# app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
-# app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
-# app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
+app.config['FLASKS3_BUCKET_NAME'] = 'themed-party-playlist'
+app.config['AWS_ACCESS_KEY_ID'] = environ.get('AWS_ACCESS_KEY_ID')
+app.config['AWS_SECRET_ACCESS_KEY'] = environ.get('AWS_SECRET_ACCESS_KEY')
 
-# AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID')
-# AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY')
+AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY')
 
-# s3 = boto3.client('s3', region_name='us-west-1')
+s3 = boto3.client('s3', region_name='us-west-1')
 
-# S3_BUCKET = os.environ.get('S3_BUCKET')
+S3_BUCKET = os.environ.get('S3_BUCKET')
 
 if (os.environ.get('PORT')):
 	port = os.environ.get('PORT')
@@ -333,11 +333,11 @@ def load_nlp():
 	global nlp
 
 	# nlp = Magnitude('static/GoogleNews-vectors-negative300.magnitude') #TODO: maybe switch back to lite #TODO: convert '_' to '-'
-	# s3.download_file('themed-party-playlist', 'GoogleNews-vectors-negative300.magnitude', 'GoogleNews-vectors-negative300.magnitude')
+	s3.download_file('themed-party-playlist', 'GoogleNews-vectors-negative300.magnitude', 'GoogleNews-vectors-negative300.magnitude')
 	# nlp = Magnitude('s3://themed-party-playlist/GoogleNews-vectors-negative300.magnitude')
-	nlp = Magnitude('http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude', stream=True) #TODO: maybe switch back to lite #TODO: convert '_' to '-'
+	# nlp = Magnitude('http://magnitude.plasticity.ai/word2vec/medium/GoogleNews-vectors-negative300.magnitude', stream=True) #TODO: maybe switch back to lite #TODO: convert '_' to '-'
 
-	# nlp = Magnitude('static/GoogleNews-vectors-negative300.magnitude')
+	nlp = Magnitude('GoogleNews-vectors-negative300.magnitude')
 	
 	print('done loading nlp.') #debug
 	global status

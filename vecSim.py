@@ -22,7 +22,8 @@ def similarity(nlp, sentences, theme, thresh=0.3):
   print(sentences) #remove #debug
   matches = []
 
-  for sent in sentences:
+  for idx, sent in enumerate(sentences):
+    print(f'sentence {idx}/{len(sentences)}')
     sent = ''.join(c for c in sent if c not in ',.?:!/:;()') # 0123456789
 
     words = sent.split(' ')
@@ -41,20 +42,21 @@ def similarity(nlp, sentences, theme, thresh=0.3):
       except:
         lem_words.append(word)
 
-    print('checkpt')
-
     sim = nlp.similarity(theme, lem_words)
-
-    print('sim:', sim)
 
     matches.extend([(word, sim[i].item()) for i, word in enumerate(words)]) #new # if (word, sim[i].item()) not in matches
 
+
   matches.sort(key=lambda x: x[1], reverse=True)
 
+  print('checkpt2')
+
   ct_20p = int(0.2*len(matches))
+
+  print(ct_20p)
   top_20p = matches[:ct_20p]
 
-  print(top_20p) #remove #debug
+  print(top_20p, '!') #remove #debug
 
   score = sum([m[1] for m in top_20p])/ct_20p
 
