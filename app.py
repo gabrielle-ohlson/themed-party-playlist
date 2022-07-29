@@ -351,7 +351,8 @@ def fetch_s3_file(filename, save_as): # fetch_s3_file took: 209.01009821891785
 
 
 
-
+# https://pypi.org/project/guppy3/
+# https://smira.ru/wp-content/uploads/2011/08/heapy.html
 
 def load_nlp():
 	# print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2, 'MB') #remove
@@ -361,14 +362,14 @@ def load_nlp():
 	if nlp is None:
 		start_time = time.perf_counter() #remove #debug
 
-		fetch_s3_file('word2vec-light.magnitude', 'word2vec-light.magnitude')
-		nlp = Magnitude('word2vec-light.magnitude')
-		# fetch_s3_file('glove_nlp', 'glove_nlp.magnitude')
+		# fetch_s3_file('word2vec-light.magnitude', 'word2vec-light.magnitude')
+		# nlp = Magnitude('word2vec-light.magnitude')
+		fetch_s3_file('glove_nlp', 'glove_nlp.magnitude')
 
 		# with NamedTemporaryFile(suffix='.magnitude') as f:
 		# 	s3.download_fileobj(S3_BUCKET, 'glove_nlp', f)
 		# 	print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2, 'MB')
-		# nlp = Magnitude('glove_nlp.magnitude')
+		nlp = Magnitude('glove_nlp.magnitude')
 
 		# nlp = Magnitude()
 
